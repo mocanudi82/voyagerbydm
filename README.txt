@@ -1,7 +1,5 @@
-VOYAGER by DM - installable app
-1. Create a GitHub repository (e.g. voyager) and upload ALL files and the icons folder from this package to the root.
-2. Settings > Pages > Source: Deploy from a branch > main / (root) > Save.
-3. After a minute open https://<your-user>.github.io/voyager/ in Safari on the iPhone.
-4. Share > Add to Home Screen. Open it once online; after that it works offline.
-Data stays on the device. Use Me > Export backup to move data between devices.
-To release an update, replace index.html and change the version name in sw.js (voyager-v1 -> voyager-v2).
+VOYAGER by DM - Training Suite style (installable app)
+1. Upload ALL files in this folder (index.html, manifest.webmanifest, sw.js, icon-180/192/512.png) to the root of a GitHub repository (use a different repo or folder than the Soft glass version).
+2. Settings > Pages > Deploy from branch > main / (root).
+3. Open the Pages address in Safari on the iPhone > Share > Add to Home Screen. Open once online; then it works offline.
+Data stays on the device: Me > Export backup to move it. To release an update replace index.html and change voyager-v1 to voyager-v2 in sw.js.
