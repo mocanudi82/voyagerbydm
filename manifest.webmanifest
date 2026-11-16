@@ -7,7 +7,51 @@
  "background_color": "#d8f0ef",
  "theme_color": "#d8f0ef",
  "icons": [
-  {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
-  {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"}
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png",
+   "purpose": "any"
+  }
+ ],
+ "shortcuts": [
+  {
+   "name": "Boarding pass",
+   "short_name": "Boarding pass",
+   "url": "./?go=pass",
+   "icons": [
+    {
+     "src": "icon-192.png",
+     "sizes": "192x192"
+    }
+   ]
+  },
+  {
+   "name": "Add expense",
+   "short_name": "Add expense",
+   "url": "./?go=expense",
+   "icons": [
+    {
+     "src": "icon-192.png",
+     "sizes": "192x192"
+    }
+   ]
+  },
+  {
+   "name": "Wallet",
+   "short_name": "Wallet",
+   "url": "./?go=wallet",
+   "icons": [
+    {
+     "src": "icon-192.png",
+     "sizes": "192x192"
+    }
+   ]
+  }
  ]
 }

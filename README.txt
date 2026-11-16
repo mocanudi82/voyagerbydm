@@ -10,3 +10,9 @@ UPDATE v3
 - Wallet (Tools > Wallet): documents per person, expiry alerts, passcode.
 - Money tab per trip: expenses, budget, settle up, CSV. Currency tool with rate update.
 - Pack tab, Offline maps per trip, Today card and daily weather, backup with encrypted Wallet.
+
+UPDATE v4
+- Training Suite headings on every page: layered title, subtitle, date, starred section titles, layered back arrow.
+- Boarding pass quick screen (home flight card and each booking), receipts on expenses.
+- Trip map with route to Google Maps / Waze, time zone and jet-lag card, phrasebook, duplicate trip, trip summary.
+- English / French switch (Me tab), home-screen shortcuts (Android and desktop), cache voyager-v4.
