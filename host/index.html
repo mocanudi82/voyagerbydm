@@ -420,7 +420,7 @@ profile:{name:'',passport:'',passportNo:'',passportCountry:'',seat:'Aisle',meal:
 settings:{docLimit:25,buffer:150,bufferDom:120,travelMin:45,minConnect:60,offsetPrice:30,notify:false,wiki:'en'},
 ratings:[],fired:{}}}
 let S=(()=>{try{const j=JSON.parse(localStorage.getItem(KEY));if(j)return{...defaults(),...j,profile:{...defaults().profile,...j.profile},settings:{...defaults().settings,...j.settings}}}catch(e){}return defaults()})();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Storage is full — export a backup')}}
+function save(){S._chg=(S._chg||0)+1;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('Storage is full — export a backup')}}
 let UI={tab:'trips',tripId:null,sub:'plan',tool:null,goFlight:null,ex:{cat:'near',sub:'restaurant',rad:1000,res:[],lat:null,lon:null,label:'',loading:false,err:''}};
 const trip=id=>S.trips.find(t=>t.id===id);
 /* ---- dates ---- */
@@ -535,19 +535,20 @@ function viewTrips(){
  const card=t=>{const r=tripRange(t),n=t.items.length,fl=t.items.filter(i=>i.type==='flight').length;const dd=r.start?dayDiff(now.toISOString().slice(0,10),r.start):null;
   return`<div class="card" data-act="openTrip" data-id="${t.id}" style="cursor:pointer"><div class="row"><div class="sp"><div style="font-size:20px;font-weight:500">${esc(t.name)}</div><div class="mut">${esc(t.dest||'')} ${t.cc?'· '+esc(CC_NAME[t.cc]||t.cc):''}</div></div>${dd!==null&&dd>=0?`<span class="pill amber">in ${dd} d</span>`:dd!==null&&r.end&&D(r.end)>=now?`<span class="pill green">now</span>`:''}</div>
   <div class="mut sm" style="margin-top:6px">${r.start?fdate(r.start,{day:'numeric',month:'short',year:'numeric'}):'No dates'}${r.end?' → '+fdate(r.end,{day:'numeric',month:'short'}):''} · ${tripNights(t)} nights · ${fl} flights · ${n} items</div></div>`};
- return`<div style="margin-bottom:12px">${seg}</div>${todayCard()}${heroNext()}
+ return`<div style="margin-bottom:12px">${seg}</div>${backupBanner()}${countdownCard()}${todayCard()}${heroNext()}
  ${al.length?`<div class="card"><h3>Alerts</h3>${al.map(alertRow).join('')}${computeAlerts().length>3?`<div class="mut sm" style="padding-top:8px" data-act="alerts">+${computeAlerts().length-3} more</div>`:''}</div>`:''}
  <div class="row" style="margin:6px 0 10px"><h3 style="margin:0;font-size:18px;text-transform:uppercase;letter-spacing:1px" class="sp">Upcoming</h3><button class="btn s" data-act="newTrip">+ Trip</button></div>
  ${up.map(card).join('')||`<div class="empty">No upcoming trips</div>`}
  ${past.length?`<h3 style="font-size:18px;text-transform:uppercase;letter-spacing:1px;margin:18px 0 10px">Past</h3>${past.map(card).join('')}`:''}
- ${S.trips.length?'':`<div class="card"><button class="btn b" data-act="demo">Load sample trip</button></div>`}`}
+ ${S.trips.length?'':`<div class="card"><button class="btn b" data-act="demo">Load sample trip</button></div>`}
+ <div class="row w" style="margin-top:14px"><label class="btn o s">Import trip file<input type="file" id="tripfile" accept=".json,application/json" hidden></label></div>`}
 /* ===== TRIP DETAIL ===== */
 const SUBS=[['plan','Plan'],['crew','People'],['money','Money'],['pack','Pack'],['docs','Docs'],['share','Share'],['info','Info'],['alerts','Alerts']];
 function viewTrip(){const t=trip(UI.tripId);if(!t){UI.tripId=null;return viewTrips()}
  const r=tripRange(t);
  const chips=`<div class="chips">${SUBS.map(([k,l])=>`<div class="chip ${UI.sub===k?'on':''}" data-act="sub" data-k="${k}">${l}</div>`).join('')}</div>`;
  const head=`<div class="card"><div class="row"><div class="sp"><div class="mut">${esc(t.dest||'')}${t.cc?' · '+esc(CC_NAME[t.cc]||t.cc):''}</div><div class="mut sm">${r.start?fdate(r.start):'No dates'}${r.end?' → '+fdate(r.end):''} · ${tripNights(t)} nights</div></div><button class="btn o s" data-act="editTrip">Edit</button></div></div>`;
- let body='';if(UI.sub==='plan')body=viewPlan(t);else if(UI.sub==='docs')body=`<div id="docsbox"><div class="empty">Loading…</div></div>`;else if(UI.sub==='crew')body=viewCrew(t);else if(UI.sub==='money')body=viewMoney(t);else if(UI.sub==='pack')body=viewPack(t);else if(UI.sub==='share')body=viewShare(t);else if(UI.sub==='info')body=viewInfo(t);else body=viewTripAlerts(t);
+ let body='';if(UI.sub==='plan')body=viewPlan(t);else if(UI.sub==='docs')body=`<div id="docsbox"><div class="empty">Loading…</div></div>`;else if(UI.sub==='crew')body=viewCrew(t);else if(UI.sub==='money')body=viewMoney(t);else if(UI.sub==='pack')body=viewPack(t);else if(UI.sub==='share')body=viewShare(t);else if(UI.sub==='info')body=viewInfo(t);else if(UI.sub==='journal')body=viewJournal(t);else body=viewTripAlerts(t);
  return head+chips+body}
 function itemRow(i){const st=i.status?.state;const sub=[];
  if(i.type==='flight'){sub.push(`${apLabel(i.from)} → ${apLabel(i.to)}`);if(i.airline)sub.push(i.airline)}else if(i.address||i.location)sub.push(i.address||i.location);
@@ -569,10 +570,10 @@ function viewPlan(t){
   const sOut0=stays.some(s=>s.end.slice(0,10)===d&&s.start.slice(0,10)<d);const sum=its2.length?`${its2.length} item${its2.length>1?'s':''}${fl?' · '+fl+' flight'+(fl>1?'s':''):''}`:sIn.length?'Staying at '+esc(sIn[0].title||'stay'):sOut0?'Check-out day':'Free day';
   const title=`<span class="sp"><span class="dtt">${fdate(d,{weekday:'short',day:'numeric',month:'short'})}</span> <span class="mut sm" style="text-transform:none;letter-spacing:0">· Day ${r.start?dayDiff(r.start,d)+1:k+1}</span><div class="mut sm" style="text-transform:none;letter-spacing:0;font-weight:400">${sum}${wxDay(t,d)}</div></span><span style="font-size:18px">${kinds}</span>`;
   const sOut=stays.filter(s=>s.end.slice(0,10)===d&&s.start.slice(0,10)<d);const inner=sOut.map(s=>`<div class="mut sm" style="padding:6px 4px">🏨 Check-out · ${esc(s.title||'Stay')}${ftime(s.end)?' · '+ftime(s.end):''}</div>`).join('')+its2.map(itemRow).join('')+sIn.map(s=>`<div class="mut sm" style="padding:6px 4px">🏨 ${esc(s.title||'Stay')} · night ${dayDiff(s.start.slice(0,10),d)+1} of ${dayDiff(s.start.slice(0,10),s.end.slice(0,10))}</div>`).join('')+(!its2.length&&!sIn.length&&!sOut.length?'<div class="mut sm" style="padding:6px 4px">Nothing planned</div>':'');
-  return acc('d_'+t.id+d,title,inner,d===firstOpen||d===today,fl?'alt':'')}).join('');
+  return acc('d_'+t.id+d,title,inner+dayRoute(its2)+dayPlanBtn(d),d===firstOpen||d===today,fl?'alt':'')}).join('');
  if(by.undated)h+=acc('d_'+t.id+'u','<span class="sp">Undated</span>',by.undated.map(itemRow).join(''),true);
  const fl=t.items.filter(i=>i.type==='flight');const kg=fl.reduce((s,i)=>s+co2(i).kg,0);
- return`${summaryCard(t)}<div class="row w" style="margin-bottom:10px"><button class="btn s" data-act="addItem">+ Add</button><button class="btn o s" data-act="importMail">📥 From email</button><button class="btn o s" data-act="exportIcs">📅 Calendar (.ics)</button><button class="btn o s" data-act="tripMap">🗺️ Explore here</button><button class="btn o s" data-act="tmapGo">🗺️ Trip map</button></div>
+ return`${readyCard(t)}${summaryCard(t)}<div class="row w" style="margin-bottom:10px"><button class="btn s" data-act="addItem">+ Add</button><button class="btn o s" data-act="importMail">📥 From email</button><button class="btn o s" data-act="exportIcs">📅 Calendar (.ics)</button><button class="btn o s" data-act="tripMap">🗺️ Explore here</button><button class="btn o s" data-act="tmapGo">🗺️ Trip map</button><button class="btn o s" data-act="dayIdeas">🏖️ Day trips</button></div>
  ${h||'<div class="empty">Nothing planned yet</div>'}
  ${offlineCard(t)}${fl.length?`<div class="card" style="margin-top:12px"><h3>Carbon</h3><div class="row"><div class="sp"><div class="big">${(kg/1000).toFixed(2)} t</div><div class="mut sm">CO₂e for ${fl.length} flight${fl.length>1?'s':''} · offset ≈ ${offsetEur(kg).toFixed(0)} €</div></div><button class="btn o s" data-act="tool" data-k="carbon">Offset options</button></div></div>`:''}`}
 /* ---- docs ---- */
@@ -616,7 +617,7 @@ function itemSheet(tid,type,it,pre){const t=trip(tid);it=it||pre||{};type=type||
   else if(!v.title.trim()){toast('Add a title');return false}
   if(it.id)Object.assign(getItem(tid,it.id),v,{type});else t.items.push({id:uid(),type,...v});save();render()})}
 function itemMenu(id){const t=trip(UI.tripId),i=getItem(t.id,id);const pos=i.type==='flight'?AP[i.from]:null;const q=i.address||i.location||i.title||'';
- const nav=i.type==='flight'?`${A(L.waze(pos?.lat,pos?.lon),'Waze to '+i.from)}${A(L.gll(pos?.lat,pos?.lon),'Google Maps')}`:q?`${A(L.gdir(q),'Google Maps')}${A(L.wazeQ(q),'Waze')}${A(L.apple(q),'Apple Maps')}`:'';
+ const nav=i.type==='flight'?`${A(L.waze(pos?.lat,pos?.lon),'Waze to '+i.from)}${A(L.gll(pos?.lat,pos?.lon),'Google Maps')}`:q?`${A(L.gdir(q),'Google Maps')}${A(L.wazeQ(q),'Waze')}${A(L.earthQ(q),'🌍 Earth')}${A(L.apple(q),'Apple Maps')}`:'';
  openSheet(esc(itemTitle(i)),`<div class="mut">${fdt(i.start)}${i.end?' → '+fdt(i.end):''}</div>${i.conf?`<div class="kv"><b>Ref</b><span>${esc(i.conf)}</span></div>`:''}${i.notes?`<div class="mut" style="margin:8px 0">${esc(i.notes)}</div>`:''}
  <div class="row w" style="margin:12px 0">${nav}</div><div class="row w">
  <button class="btn s" data-act="editItem" data-id="${id}">Edit</button>${i.start?A(gcalLink(i),'Add to Google Calendar'):''}
@@ -666,26 +667,28 @@ async function overpass(q){for(const u of['https://overpass-api.de/api/interpret
 const ctr=e=>e.type==='node'?{lat:e.lat,lon:e.lon}:e.center;
 function norm(els,kind,E){return els.map(e=>{const c=ctr(e);if(!c)return null;const t=e.tags||{};return{id:e.type+e.id,name:t.name||t['name:en']||t.operator||t.brand||kind,lat:c.lat,lon:c.lon,dist:hav(E.lat,E.lon,c.lat,c.lon)*1000,kind:t.cuisine?t.cuisine.replace(/_/g,' ').split(';')[0]:(t.tourism||t.historic||t.natural||t.amenity||t.shop||t.route||kind).replace(/_/g,' '),extra:[t.opening_hours&&'🕒 '+t.opening_hours,t.distance&&t.distance+' km',t.network&&({lwn:'local',rwn:'regional',nwn:'national',iwn:'international'}[t.network]||t.network),t.ele&&t.ele+' m',t.ref&&'ref '+t.ref,t.description].filter(Boolean).join(' · '),rel:e.type==='relation'?e.id:null}}).filter(Boolean).sort((a,b)=>a.dist-b.dist)}
 async function exploreRun(){const E=UI.ex;if(E.lat==null)return;E.loading=true;E.err='';E.res=[];render();
- try{if(E.cat==='near'){const n=NEAR[E.sub];const j=await overpass(`[out:json][timeout:25];nwr(around:${E.rad},${E.lat},${E.lon})${n[2]}${n[3]?'[name]':''};out center tags 80;`);E.res=norm(j.elements,n[1],E).slice(0,30)}
+ try{if(E.cat==='near'&&(E.sub==='restaurant'||E.sub==='bar')){await richNear(E)}
+ else if(E.cat==='near'){const n=NEAR[E.sub];const j=await overpass(`[out:json][timeout:25];nwr(around:${E.rad},${E.lat},${E.lon})${n[2]}${n[3]?'[name]':''};out center tags 80;`);E.res=norm(j.elements,n[1],E).slice(0,30)}
  else if(E.cat==='gems'){const R=Math.max(E.rad,4000);const[jw,jo]=await Promise.allSettled([fetch(`https://${S.settings.wiki}.wikipedia.org/w/api.php?action=query&format=json&origin=*&generator=geosearch&ggscoord=${E.lat}|${E.lon}&ggsradius=${Math.min(R,10000)}&ggslimit=20&prop=extracts|pageimages|pageviews|coordinates&exintro=1&explaintext=1&exsentences=2&exlimit=max&piprop=thumbnail&pithumbsize=200&pvipdays=30&colimit=max`).then(r=>r.json()),overpass(`[out:json][timeout:25];(nwr(around:${R},${E.lat},${E.lon})[tourism~"^(viewpoint|artwork)$"][name];nwr(around:${R},${E.lat},${E.lon})[historic][name][!wikidata];nwr(around:${R},${E.lat},${E.lon})[natural~"^(spring|waterfall|cave_entrance)$"][name];nwr(around:${R},${E.lat},${E.lon})[leisure=garden][name][!wikidata];);out center tags 60;`)]);
   let out=[];if(jw.status==='fulfilled'&&jw.value.query){out=Object.values(jw.value.query.pages).filter(p=>p.coordinates&&p.extract).map(p=>{const v=Object.values(p.pageviews||{}).reduce((s,x)=>s+(x||0),0);const c=p.coordinates[0];return{id:'w'+p.pageid,name:p.title,lat:c.lat,lon:c.lon,dist:hav(E.lat,E.lon,c.lat,c.lon)*1000,kind:'Wikipedia',extra:p.extract.slice(0,170)+'…',thumb:p.thumbnail?.source,views:v,url:`https://${S.settings.wiki}.wikipedia.org/?curid=${p.pageid}`}}).sort((a,b)=>a.views-b.views).slice(0,12)}
   if(jo.status==='fulfilled')out=out.concat(norm(jo.value.elements,'Local pick',E).slice(0,18));
   if(!out.length&&jw.status==='rejected'&&jo.status==='rejected')throw new Error('Data services unreachable — check your connection');E.res=out}
- else if(E.cat==='hike'){const R=Math.max(E.rad,15000);const j=await overpass(`[out:json][timeout:30];(relation(around:${R},${E.lat},${E.lon})[route=hiking][name];node(around:${R},${E.lat},${E.lon})[natural=peak][name];nwr(around:${R},${E.lat},${E.lon})[tourism~"^(alpine_hut|wilderness_hut)$"][name];);out center tags 60;`);E.res=norm(j.elements,'Trail',E).slice(0,30)}
+ else if(E.cat==='hike'){await hikeRun(E)}
+ else if(E.cat==='day'){await dayTripRun(E)}
  else if(E.cat==='transit'){const j=await overpass(`[out:json][timeout:25];nwr(around:${Math.max(E.rad,1500)},${E.lat},${E.lon})[~"^(railway|public_transport)$"~"^(station|subway_entrance|tram_stop)$"];out center tags 60;`);E.res=norm(j.elements,'Station',E).filter(x=>x.name!=='Station').slice(0,25)}}
  catch(e){E.err=e.message||'Something went wrong'}E.loading=false;render()}
 function resCard(r){const saved=S.gems.some(g=>g.id===r.id);const q=r.name;
- return`<div class="card"><div class="row" style="align-items:flex-start">${r.thumb?`<img class="thumb" src="${esc(r.thumb)}" loading="lazy" alt="">`:''}<div class="sp"><div style="font-size:17px;font-weight:500">${esc(r.name)}</div><div class="mut sm">${esc(r.kind)} · ${r.dist<1000?Math.round(r.dist)+' m':(r.dist/1000).toFixed(1)+' km'}${r.views!=null?' · '+r.views+' views/30d':''}</div>${r.extra?`<div class="sm" style="margin-top:4px">${esc(r.extra)}</div>`:''}</div><span class="star ${saved?'':'off'}" data-act="exSave" data-id="${esc(r.id)}">★</span></div>
- <div class="row w" style="margin-top:8px">${A(L.gll(r.lat,r.lon),'Google Maps')}${A(L.waze(r.lat,r.lon),'Waze')}${A(L.apple(r.lat+','+r.lon),'Apple')}${r.rel?A('https://hiking.waymarkedtrails.org/#route?id='+r.rel,'Trail map'):''}${r.url?A(r.url,'Read'):''}</div></div>`}
+ return`<div class="card"><div class="row" style="align-items:flex-start">${r.thumb?`<img class="thumb" src="${esc(r.thumb)}" loading="lazy" alt="">`:''}<div class="sp"><div style="font-size:17px;font-weight:500">${esc(r.name)}</div><div class="mut sm">${esc(r.kind)} · ${r.dist<1000?Math.round(r.dist)+' m':(r.dist/1000).toFixed(1)+' km'}${r.views!=null?' · '+r.views+' views/30d':''}</div>${r.badge?`<div class="sm" style="margin-top:2px">${r.badge}</div>`:''}${r.drive?`<div class="sm" style="margin-top:2px">🚗 ${esc(r.drive)}</div>`:''}${r.extra?`<div class="sm" style="margin-top:4px">${esc(r.extra)}</div>`:''}</div><span class="star ${saved?'':'off'}" data-act="exSave" data-id="${esc(r.id)}">★</span></div>
+ <div class="row w" style="margin-top:8px">${A('https://www.google.com/maps/search/?api=1&query='+enc(r.name)+'%20'+r.lat+','+r.lon,'⭐ Reviews')}${A(L.gll(r.lat,r.lon),'Google Maps')}${A(L.waze(r.lat,r.lon),'Waze')}${A(L.earth(r.lat,r.lon),'🌍 Earth')}${A(L.apple(r.lat+','+r.lon),'Apple')}${S.trips.length?`<button class="btn s" data-act="placeAdd" data-n="${esc(r.name)}" data-la="${r.lat}" data-lo="${r.lon}">＋ Trip day</button>`:''}${r.rel?A('https://hiking.waymarkedtrails.org/#route?id='+r.rel,'Trail map'):''}${r.url?A(r.url,'Read'):''}${r.sites||''}</div></div>`}
 function viewExplore(){const E=UI.ex;const hotels=S.trips.flatMap(t=>t.items.filter(i=>i.type==='hotel').map(i=>({t,i})));
  const sel=hotels.length?`<select data-act="exHotelSel" style="margin-top:8px"><option value="">Choose a stay…</option>${hotels.map(h=>`<option value="${h.i.id}">${esc(h.i.title)} — ${esc(h.t.name)}</option>`).join('')}</select>`:'';
  let body='';
  if(E.cat==='safety')body=viewSafety();else if(E.cat==='saved')body=S.gems.length?S.gems.map(g=>resCard({...g,dist:E.lat!=null?hav(E.lat,E.lon,g.lat,g.lon)*1000:0,extra:g.note})).join(''):'<div class="empty">No saved places</div>';
  else if(E.cat==='transit')body=`<div class="card"><h3>Route planner</h3>${viewNavigator(true)}</div>`+(E.loading?'<div class="empty">Loading…</div>':E.res.map(resCard).join(''));
- else body=(E.cat==='near'?`<div class="chips">${Object.entries(NEAR).map(([k,v])=>`<div class="chip ${E.sub===k?'on':''}" data-act="exSub" data-k="${k}">${v[0]} ${v[1]}</div>`).join('')}</div>`:'')+(E.loading?'<div class="empty">Loading…</div>':E.err?`<div class="card"><span class="pill red">Error</span> ${esc(E.err)}</div>`:E.res.length?E.res.map(resCard).join(''):E.lat==null?'<div class="empty">Choose a place to explore</div>':'<div class="empty">Nothing found — widen the radius</div>');
+ else body=(E.cat==='day'?dayChips():'')+(E.cat==='hike'?hikeChips(E)+(E.res.length&&E.hmode!=='peaks'?hikeTop(E):''):'')+(E.cat==='near'?`<div class="chips">${Object.entries(NEAR).map(([k,v])=>`<div class="chip ${E.sub===k?'on':''}" data-act="exSub" data-k="${k}">${v[0]} ${v[1]}</div>`).join('')}</div>`:'')+(E.cat==='near'&&(E.sub==='restaurant'||E.sub==='bar')?richChips(E):'')+(E.loading?'<div class="empty">Loading…</div>':E.err?`<div class="card"><span class="pill red">Error</span> ${esc(E.err)}</div>`:E.res.length?E.res.map(resCard).join('')+(E.cat==='day'?recoCard(E):'')+(E.cat==='hike'&&E.hmode!=='peaks'?hikeFoot(E):''):E.lat==null?'<div class="empty">Choose a place to explore</div>':'<div class="empty">Nothing found — widen the radius</div>');
  return`<div class="card"><div class="row"><input id="exq" placeholder="Hotel, address, city or landmark" value="${esc(E.q||'')}" style="flex:1"><button class="btn" data-act="exGo">Go</button></div><div class="row w" style="margin-top:8px"><button class="btn o s" data-act="exLoc">📍 My location</button>
- <select data-act="exRad" style="width:auto">${[[500,'500 m'],[1000,'1 km'],[2000,'2 km'],[5000,'5 km'],[10000,'10 km']].map(([v,l])=>`<option value="${v}" ${E.rad==v?'selected':''}>${l}</option>`).join('')}</select></div>${sel}</div>
- ${E.lat!=null?`<div class="card" style="padding:8px"><div class="row" style="padding:2px 6px 8px"><b class="sp" style="font-weight:500">${esc(E.label)}</b>${A(L.gll(E.lat,E.lon),'Maps')}${A(L.waze(E.lat,E.lon),'Waze')}</div><iframe class="map" loading="lazy" src="${L.embed(E.lat,E.lon,Math.max(.006,E.rad/110000))}"></iframe></div>`:''}
+ ${E.cat==='hike'?hikeRad():E.cat==='day'?`<select data-act="exDrad" style="width:auto">${DRAD.map(([v,l])=>`<option value="${v}" ${(E.drad||46000)==v?'selected':''}>${l}</option>`).join('')}</select>`:`<select data-act="exRad" style="width:auto">${[[500,'500 m'],[1000,'1 km'],[2000,'2 km'],[5000,'5 km'],[10000,'10 km']].map(([v,l])=>`<option value="${v}" ${E.rad==v?'selected':''}>${l}</option>`).join('')}</select>`}</div>${sel}</div>
+ ${E.lat!=null?`<div class="card" style="padding:8px"><div class="row" style="padding:2px 6px 8px"><b class="sp" style="font-weight:500">${esc(E.label)}</b>${A(L.gll(E.lat,E.lon),'Maps')}${A(L.waze(E.lat,E.lon),'Waze')}${A(L.earth(E.lat,E.lon),'Earth')}</div><iframe class="map" loading="lazy" src="${L.embed(E.lat,E.lon,Math.max(.006,E.rad/110000))}"></iframe></div>`:''}
  <div class="chips">${CATS.map(([k,l])=>`<div class="chip ${E.cat===k?'on':''}" data-act="exCat" data-k="${k}">${l}</div>`).join('')}</div>${body}`}
 /* ---- safety ---- */
 const SAF=[['day','Walking by day'],['night','Walking at night'],['solo','Solo traveller'],['transit','Public transport'],['scams','Scams & petty theft']];
@@ -804,9 +807,9 @@ function viewMe(){const p=S.profile,st=S.settings;const pm=p.passport?(D(p.passp
  <div class="card"><h3>Passport</h3><div class="g2">${pf('passportCountry','Issuing country')}${pf('passport','Expiry date',{type:'date'})}</div><div class="g2">${pf('passportNo','Passport number')}<span></span></div>${pm!==null?`<span class="pill ${pm<6?'red':pm<9?'amber':'green'}">${pm<0?'Expired':pm.toFixed(0)+' months left'}</span><div class="mut sm" style="margin-top:6px">Reminder starts 9 months before expiry. Many countries require 6 months' validity on arrival.</div>`:'<div class="mut sm">Add the expiry date to get renewal reminders.</div>'}</div>
  ${meExtra()}
  <div class="card"><div class="row"><h3 class="sp" style="margin:0">Inner Circle</h3><button class="btn s" data-act="circleAdd">+ Add</button></div>${S.circle.map(c=>`<div class="row" style="padding:8px 0;border-bottom:1px dashed var(--line)" data-act="circleEdit" data-id="${c.id}"><div class="sp"><div>${esc(c.name)}</div><div class="mut sm">${esc(c.method)} · ${esc(c.contact)}</div></div><button class="btn d s" data-act="circleDel" data-id="${c.id}">✕</button></div>`).join('')||'<div class="empty">No contacts yet</div>'}</div>
- <div class="card"><h3>Settings</h3><div class="g2">${sf('buffer','Airport arrival, international (min)')}${sf('bufferDom','Airport arrival, domestic (min)')}</div><div class="g2">${sf('travelMin','Default travel to airport (min)')}${sf('minConnect','Minimum connection (min)')}</div><div class="g2"><label class="f"><b>Documents per trip</b><select data-set="docLimit">${[3,25].map(n=>`<option ${st.docLimit==n?'selected':''}>${n}</option>`).join('')}</select></label><label class="f"><b>Wikipedia language</b><select data-set="wiki">${['en','fr','es','de','it','pt'].map(n=>`<option ${st.wiki===n?'selected':''}>${n}</option>`).join('')}</select></label></div>
+ <div class="card"><h3>Settings</h3><div class="g2">${sf('buffer','Airport arrival, international (min)')}${sf('bufferDom','Airport arrival, domestic (min)')}</div><div class="g2">${sf('travelMin','Default travel to airport (min)')}${sf('minConnect','Minimum connection (min)')}</div><div class="g2"><label class="f"><b>Documents per trip</b><select data-set="docLimit">${[3,25].map(n=>`<option ${st.docLimit==n?'selected':''}>${n}</option>`).join('')}</select></label><label class="f"><b>Save maps automatically</b><select data-set="autoOff"><option value="1" ${st.autoOff!=='0'?'selected':''}>On</option><option value="0" ${st.autoOff==='0'?'selected':''}>Off</option></select></label><label class="f"><b>Wikipedia language</b><select data-set="wiki">${['en','fr','es','de','it','pt'].map(n=>`<option ${st.wiki===n?'selected':''}>${n}</option>`).join('')}</select></label></div>
  <div class="row w"><button class="btn o s" data-act="notif">${st.notify?'🔔 Reminders on':'🔕 Enable reminders'}</button></div><div class="mut sm" style="margin-top:6px">In-app reminders (check-in, Go Now, gate) fire while Voyager is open. For reminders when closed, export the trip calendar — it includes alarms.</div></div>
- <div class="card"><h3>Sync & backup</h3><div class="mut sm" style="margin-bottom:8px">Data stays on this device. Move it to another phone or computer with a backup file.</div><div class="row w"><button class="btn s" data-act="exportAll">Export backup</button><label class="btn o s">Import<input type="file" id="impfile" accept=".json,application/json" hidden></label><button class="btn o s" data-act="exportMsg">Copy as text</button><button class="btn o s" data-act="importMsg">Paste backup</button></div><button class="btn d s" style="margin-top:12px" data-act="reset">Erase all data</button></div>`}
+ <div class="card"><h3>Sync & backup</h3><div class="mut sm" style="margin-bottom:8px">Data stays on this device. Move it to another phone or computer with a backup file.</div><div class="row w"><button class="btn s" data-act="exportAll">Export backup</button><button class="btn o s" data-act="trainExport">Trips for Training</button><label class="btn o s">Import<input type="file" id="impfile" accept=".json,application/json" hidden></label><button class="btn o s" data-act="exportMsg">Copy as text</button><button class="btn o s" data-act="importMsg">Paste backup</button></div><button class="btn d s" style="margin-top:12px" data-act="reset">Erase all data</button></div>`}
 
 /* ===== VOYAGER 3: travellers · wallet · expenses · pack · offline · weather · currency · backup ===== */
 const CUR_SYM={'€':'EUR','$':'USD','£':'GBP','¥':'JPY'};
@@ -861,7 +864,7 @@ function settle(t){const pl=tripPeople(t);if(pl.length<2)return null;const bal={
 function viewMoney(t){const ex=exps(t),eur=ex.reduce((s,e)=>s+e.eur,0),bk=bookingsEUR(t),tot=eur+bk.sum,pl=tripPeople(t),r=tripRange(t),today=isoLocal(new Date()).slice(0,10);
  let avg=null;if(r.start&&today>=r.start){const end=r.end&&today>r.end?r.end:today;avg=eur/(dayDiff(r.start,end)+1)}
  const cats=ECATS.map(c=>[c,ex.filter(e=>e.cat===c[0]).reduce((s,e)=>s+e.eur,0)]).filter(x=>x[1]>0),mx=Math.max(1,...cats.map(x=>x[1]));const st=settle(t);const by={};ex.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(e=>(by[e.date]=by[e.date]||[]).push(e));
- return`<div class="row w" style="margin-bottom:10px"><button class="btn s" data-act="expAdd">+ Expense</button><button class="btn o s" data-act="budgetSet">Budget</button>${ex.length?'<button class="btn o s" data-act="expCsv">CSV</button>':''}</div>
+ return`<div class="row w" style="margin-bottom:10px"><button class="btn s" data-act="expAdd">+ Expense</button><button class="btn o s" data-act="quickExp">⚡ Quick</button><button class="btn o s" data-act="budgetSet">Budget</button>${ex.length?'<button class="btn o s" data-act="expCsv">CSV</button>':''}</div>
  <div class="card"><div class="mut sm">TOTAL</div><div class="big">${money(tot)}</div>
  ${t.budget?`<div class="bar" style="margin:8px 0"><i style="width:${Math.min(100,tot/t.budget*100)}%${tot>t.budget?';background:var(--bad)':''}"></i></div><div class="row"><span class="mut sm sp">Budget ${money(t.budget)}</span><span class="pill ${tot>t.budget?'red':'green'}">${tot>t.budget?money(tot-t.budget)+' over':money(t.budget-tot)+' left'}</span></div>`:''}
  <div class="kv"><b>Bookings</b><span>${money(bk.sum)}${bk.n?' · '+bk.n+' item'+(bk.n>1?'s':''):''}</span></div><div class="kv"><b>Expenses</b><span>${money(eur)}</span></div>${avg!=null&&eur?`<div class="kv"><b>Per day</b><span>${money(avg)}</span></div>`:''}${pl.length>1&&tot?`<div class="kv"><b>Per person</b><span>${money(tot/pl.length)}</span></div>`:''}</div>
@@ -875,7 +878,7 @@ function viewStats(){return viewStats0()+statsSpend()}
 const PACK={Essentials:['Passport / ID','Tickets & booking refs','Wallet & cards','Phone & charger','Power bank','Plug adapter','Medication','Toiletries','Headphones'],Beach:['Swimwear','Sunscreen','Sunglasses','Beach towel','Flip-flops','Hat'],Ski:['Skis / board','Ski boots','Helmet','Goggles','Ski jacket','Ski trousers','Gloves','Thermal base layers','Ski socks','Neck gaiter','Lift pass','Sunscreen & lip balm','Après-ski shoes'],City:['Comfortable shoes','Day bag','Light jacket','Umbrella','Offline maps'],Hiking:['Hiking boots','Rucksack','Water bottle','Rain jacket','First-aid kit','Snacks','Headtorch','Hat & sun cream'],Cold:['Warm coat','Scarf & gloves','Wool hat','Thermal layers','Waterproof boots'],Business:['Laptop & charger','Business clothes','Notebook','Adapters & dongles']};
 function viewPack(t){const p=t.pack||(t.pack=[]);const done=p.filter(x=>x.done).length;const cats=[...new Set(p.map(x=>x.cat))];
  return`<div class="card"><div class="row"><h3 class="sp" style="margin:0">Packing</h3><span class="pill ${p.length&&done===p.length?'green':''}">${done} / ${p.length}</span></div><div class="bar" style="margin:10px 0"><i style="width:${p.length?done/p.length*100:0}%"></i></div>
- <div class="chips" style="padding-bottom:6px">${Object.keys(PACK).map(k=>`<div class="chip" data-act="packTpl" data-k="${k}">+ ${k}</div>`).join('')}</div><div class="row w"><button class="btn o s" data-act="packAdd">+ Item</button>${done?'<button class="btn o s" data-act="packReset">Untick all</button><button class="btn o s" data-act="packClear">Remove ticked</button>':''}</div></div>
+ <div class="chips" style="padding-bottom:6px">${Object.keys(PACK).map(k=>`<div class="chip" data-act="packTpl" data-k="${k}">+ ${k}</div>`).join('')}</div>${tplChips()}<div class="row w"><button class="btn o s" data-act="packAdd">+ Item</button>${tplBtns(t)}${done?'<button class="btn o s" data-act="packReset">Untick all</button><button class="btn o s" data-act="packClear">Remove ticked</button>':''}</div></div>
  ${cats.map(c=>`<div class="card"><h3>${esc(c)}</h3>${p.filter(x=>x.cat===c).map(x=>`<div class="row" style="padding:6px 0"><input type="checkbox" data-act="packChk" data-id="${x.id}" ${x.done?'checked':''}><span class="sp" style="${x.done?'text-decoration:line-through;color:var(--mut)':''}">${esc(x.t)}</span><button class="btn o s" data-act="packDel" data-id="${x.id}">✕</button></div>`).join('')}</div>`).join('')||'<div class="empty">Add a list to start packing</div>'}`}
 /* ---------- weather · today ---------- */
 const wxIcon=c=>c===0?'☀️':c<=2?'⛅':c===3?'☁️':c<=48?'🌫️':c<=57?'🌦️':c<=67?'🌧️':c<=77?'🌨️':c<=82?'🌧️':c<=86?'🌨️':'⛈️';
@@ -894,7 +897,7 @@ const tileXY=(lat,lon,z)=>{const n=2**z,r=lat*Math.PI/180;return[Math.floor((lon
 const tileURL=(z,x,y)=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
 const OFFZ=[13,15];
 function offlineCard(t){const o=t.offline;return`<div class="card" style="margin-top:12px"><div class="row"><div class="sp"><h3 style="margin:0">Offline</h3><div class="mut sm">${o?`Maps saved ${fdate(o.at.slice(0,10),{day:'numeric',month:'short'})} · ${o.pts.length} place${o.pts.length>1?'s':''}`:'Maps not saved'}</div></div>${o?'<button class="btn o s" data-act="offView">Maps</button>':''}<button class="btn s" data-act="offSave">${o?'Refresh':'Save'}</button></div></div>`}
-async function offSave(){const t=trip(UI.tripId);if(!window.caches)return toast('Offline storage not available here');if(UI.offBusy)return;UI.offBusy=1;
+async function offSave(tid,silent){const t=trip(typeof tid==='string'?tid:UI.tripId);const toast=m=>{if(!silent)window.toast(m)};if(!t)return;if(!window.caches)return toast('Offline storage not available here');if(UI.offBusy)return;UI.offBusy=1;
  try{toast('Locating…');const pts=[];const g=await ensureGeo(t);if(g)pts.push({label:t.dest||t.name,lat:g.lat,lon:g.lon});
   for(const h of t.items.filter(i=>i.type==='hotel'&&(i.address||i.title)).slice(0,3)){await new Promise(r=>setTimeout(r,1100));try{const x=await geocode((h.address||h.title)+' '+(t.dest||''));pts.push({label:h.title||'Stay',lat:x.lat,lon:x.lon})}catch(e){}}
   if(!pts.length){toast('Add a destination first');return}
@@ -915,7 +918,7 @@ async function exportAll(withDocs=true,pw=''){const data=JSON.parse(JSON.stringi
  const o={app:'wayfar',v:2,at:new Date().toISOString(),data,docs:[]};
  if(withDocs){try{for(const d of await docAll())o.docs.push({id:d.id,tripId:d.tripId,name:d.name,type:d.type,size:d.size,added:d.added,url:await blobToDataUrl(d.blob)})}catch(e){}}
  if(pw){const vault={wallet:wal,pnos,files:[]};for(const w of wal){try{const r=await walGet(w.id);if(r)vault.files.push({id:w.id,url:await blobToDataUrl(r.blob)})}catch(e){}}o.vault=await encText(JSON.stringify(vault),pw)}
- S.lastBackup=o.at;save();return JSON.stringify(o)}
+ S.lastBackup=o.at;save();S._chg=0;save();return JSON.stringify(o)}
 async function importBackup(txt){const o=JSON.parse(txt);if(o.app!=='wayfar')throw new Error('Not a Voyager backup');const old=S;S={...defaults(),...o.data};S.settings={...defaults().settings,...S.settings};S.profile={...defaults().profile,...S.profile};
  S.wallet=old.wallet||[];S.settings.pin=old.settings?.pin||'';S.profile.passportNo=old.profile?.passportNo||'';(S.people||[]).forEach(p=>{const q=(old.people||[]).find(x=>x.id===p.id);if(q?.pno)p.pno=q.pno});save();
  for(const d of o.docs||[]){await docPut({id:d.id,tripId:d.tripId,name:d.name,type:d.type,size:d.size,added:d.added,blob:await dataUrlToBlob(d.url)})}UI.tripId=null;render();toast('Backup restored');if(o.vault)vaultSheet(o.vault)}
@@ -936,7 +939,10 @@ function meExtra(){const ps=S.people||[],w=S.wallet||[];
 /* ---------- registry ---------- */
 TOOLS.push(['wallet','🔐','Wallet','Passports, permits, visas'],['fx','💱','Currency','Convert & rates']);
 const TOOLV3={wallet:viewWallet,fx:viewFx};
+/* ---------- link to Training ---------- */
+function trainTrips(){return S.trips.map(t=>{const r=tripRange(t);return r.start?{id:t.id,name:t.name||t.dest||'Trip',dest:t.dest||'',from:r.start,to:r.end||r.start,flights:t.items.filter(i=>i.type==='flight').length}:null}).filter(Boolean)}
 const ACT3={
+ trainExport(){const t=trainTrips();if(!t.length){toast('No dated trips yet');return}dl('voyager-trips-'+new Date().toISOString().slice(0,10)+'.json',dmEnvelope('voyager-trips',{trips:t}),'application/json');toast(t.length+(t.length>1?' trips':' trip')+' saved for Training')},
  personAdd(){personSheet()},personEdit(d){personSheet((S.people||[]).find(p=>p.id===d.id))},
  personDel(d){closeSheet();const p=S.people.find(x=>x.id===d.id);confirmSheet('Remove '+p.name+' and their Wallet documents?',async()=>{for(const w of (S.wallet||[]).filter(x=>x.pid===p.id)){try{await walDel(w.id)}catch(e){}}S.wallet=(S.wallet||[]).filter(x=>x.pid!==p.id);S.people=S.people.filter(x=>x!==p);S.trips.forEach(t=>{if(t.people)t.people=t.people.filter(i=>i!==p.id)});save();render()})},
  async wUnlock(){const v=$('#wpin')?.value||'';if(await vPin(v)===S.settings.pin){UI.wOpen=true;render()}else{toast('Wrong passcode');const e=$('#wpin');if(e)e.value=''}},
@@ -1051,7 +1057,7 @@ const FR={'Trips':'Voyages','Explore':'Explorer','Go':'En route','Tools':'Outils
 'Nothing stored':'Rien d’enregistré','No expenses yet':'Aucune dépense','Nothing planned yet':'Rien de prévu','Nothing planned':'Rien de prévu','Nothing planned today':'Rien de prévu aujourd’hui','Free day':'Jour libre','Check-out day':'Jour de départ','All clear':'Tout est en ordre','Urgent':'Urgent','Watch':'À surveiller','Good':'Bon','Maps not saved':'Cartes non enregistrées','Saved':'Enregistré','Staying':'Sur place','Undated':'Sans date','No located stops yet':'Aucun lieu localisé','Locating stops…':'Localisation…','Add a destination first':'Ajoutez d’abord une destination',
 'Flight compensation':'Indemnisation de vol','Carbon & offsets':'Carbone et compensation','Travel stats':'Statistiques de voyage','Flight ratings':'Avis de vol','Passports, permits, visas':'Passeports, permis, visas','Convert & rates':'Convertir et taux','Hidden gems & trails':'Pépites et sentiers','Open Explore':'Ouvrir Explorer',
 'Français':'Français','DEPARTS IN':'DÉPART DANS','GO NOW':'PARTEZ À','Open flight tools':'Outils du vol','Waze to airport':'Waze vers l\u2019aéroport','Back up your trips from the Me tab':'Sauvegardez vos voyages depuis l\u2019onglet Moi','Load sample trip':'Charger un voyage exemple','No upcoming trips':'Aucun voyage à venir','Nothing to flag':'Rien à signaler','Departs':'Départ','Mark':'Marquer'};
-function trFr(){if(S.settings.lang!=='fr')return;const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;const b=[];while(n=w.nextNode())b.push(n);b.forEach(x=>{const s=x.nodeValue,k=s.trim();if(!k)return;let v=FR[k];if(v===undefined){const m=k.match(/^(Today) · (.+)$/);if(m){const dd=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});v='Aujourd’hui · '+dd}else if(/^NEXT FLIGHT · /.test(k))v=k.replace('NEXT FLIGHT','PROCHAIN VOL');else if(/^Check-in opens in /.test(k))v=k.replace('Check-in opens in','Enregistrement dans');else if(/^Check-in is open/.test(k))v=k.replace('Check-in is open','Enregistrement ouvert');else if(/^Day \d+ · /.test(k))v=k.replace(/^Day (\d+)/,'Jour $1');else if(/ nights?$/.test(k)&&/^\d+ /.test(k))v=k.replace(/ nights?$/,' nuits');else return}x.nodeValue=s.replace(k,v)})}
+function trFr(){if(S.settings.lang!=='fr')return;const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);let n;const b=[];while(n=w.nextNode())b.push(n);b.forEach(x=>{const s=x.nodeValue,k=s.trim();if(!k)return;let v=FR[k];if(v===undefined){const m=k.match(/^(Today) · (.+)$/);if(m){const dd=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});v='Aujourd’hui · '+dd}else if(/^NEXT FLIGHT · /.test(k))v=k.replace('NEXT FLIGHT','PROCHAIN VOL');else if(/^Check-in opens in /.test(k))v=k.replace('Check-in opens in','Enregistrement dans');else if(/^Check-in is open/.test(k))v=k.replace('Check-in is open','Enregistrement ouvert');else if(/^Day \d+ · /.test(k))v=k.replace(/^Day (\d+)/,'Jour $1');else if(/ nights?$/.test(k)&&/^\d+ /.test(k))v=k.replace(/ nights?$/,' nuits');else{const rr=frRule(k);if(rr)v=rr;else return}}x.nodeValue=s.replace(k,v)})}
 let _trq=0;new MutationObserver(()=>{if(S.settings.lang!=='fr'||_trq)return;_trq=requestAnimationFrame(()=>{_trq=0;trFr()})}).observe(document.body,{childList:true,subtree:true,characterData:true});
 /* ---------- registry ---------- */
 Object.assign(ACT3,{
@@ -1076,7 +1082,7 @@ function viewCal(){const now=new Date();const Y=UI.calY??now.getFullYear(),M=UI.
  const fl=inYear.reduce((s,x)=>s+x.t.items.filter(i=>i.type==='flight').length,0),cc=new Set(inYear.map(x=>x.t.cc).filter(Boolean)).size;
  const first=new Date(Y,M,1),off=(first.getDay()+6)%7,dim=new Date(Y,M+1,0).getDate();const today=isoLocal(now).slice(0,10);let cells='';
  for(let k=0;k<off;k++)cells+='<div></div>';
- for(let d=1;d<=dim;d++){const iso=Y+'-'+String(M+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const x=inYear.find(x=>iso>=x.r.start&&iso<=x.r.end);cells+=`<div class="cd${x?' tr':''}${iso===today?' td':''}" ${x?`data-act="openTrip" data-id="${x.t.id}" style="--tc:${TCOL[x.k%6]}"`:''}>${d}</div>`}
+ for(let d=1;d<=dim;d++){const iso=Y+'-'+String(M+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');const x=inYear.find(x=>iso>=x.r.start&&iso<=x.r.end);cells+=`<div class="cd${x?' tr':''}${iso===today?' td':''}" ${x?`data-act="calDay" data-d="${iso}" style="--tc:${TCOL[x.k%6]}"`:''}>${d}</div>`}
  const mdays=[...days].filter(d=>d.startsWith(Y+'-'+String(M+1).padStart(2,'0'))).length;
  return`<div class="cal"><div class="cy"><button class="rb" data-act="calY" data-d="-1">‹</button><h3>${Y}</h3><button class="rb" data-act="calY" data-d="1">›</button></div>
  <div class="cstrip"><div class="cbar">${seg}</div><div class="cmon">${mon}</div></div>
@@ -1085,6 +1091,328 @@ function viewCal(){const now=new Date();const Y=UI.calY??now.getFullYear(),M=UI.
  <div class="cmh"><button class="rb" data-act="calM" data-d="-1">‹</button><div class="sp"><h3>${first.toLocaleDateString(L_,{month:'long',year:'numeric'})}</h3><small>${mdays} trip days</small></div><button class="rb" data-act="calM" data-d="1">›</button></div>
  <div class="cgrid">${['M','T','W','T','F','S','S'].map(d=>`<b>${d}</b>`).join('')}${cells}</div></div>`}
 Object.assign(ACT3,{tv(d){UI.tv=d.k;render()},calY(d){UI.calY=(UI.calY??new Date().getFullYear())+ +d.d;render()},calM(d){let y=UI.calY??new Date().getFullYear(),m=(UI.calM??new Date().getMonth())+ +d.d;if(m<0){m=11;y--}if(m>11){m=0;y++}UI.calY=y;UI.calM=m;render()}});
+
+/* ===== v7: countdown, readiness, templates, day planner, quick expense, trip file, journal, auto offline, search, calendar day ===== */
+const dIso=d=>isoLocal(d).slice(0,10);
+const v7today=()=>dIso(new Date());
+const addDays=(s,n)=>dIso(new Date(D(s).getTime()+n*864e5));
+function tripDays(t){const r=tripRange(t),o=[];if(!r.start||!r.end||dayDiff(r.start,r.end)>90)return o;for(let d=r.start;d<=r.end;d=addDays(d,1))o.push(d);return o}
+const nextTrip=()=>{const td=v7today();return S.trips.filter(t=>{const r=tripRange(t);return r.start&&r.start>td}).sort((a,b)=>tripRange(a).start.localeCompare(tripRange(b).start))[0]};
+
+/* ---------- 2. readiness ---------- */
+const RDY_MANUAL=[['ins','Travel insurance'],['visa','Visa / entry permit'],['cash','Cash and cards']];
+function readiness(t){const r=tripRange(t),td=v7today(),L=[];const add=(k,ok,txt,o={})=>L.push({k,ok,txt,...o});
+ add('dates',!!(r.start&&r.end),r.start&&r.end?'Dates set':'Add trip dates');
+ const tr=t.items.filter(i=>['flight','rail','car'].includes(i.type));
+ if(r.start&&r.end&&r.start!==r.end){const ret=tr.some(i=>(i.start||'').slice(0,10)>=addDays(r.end,-1));add('ret',!tr.length||ret,ret||!tr.length?(tr.length?'Return travel booked':'No transport added'):'No return travel on '+fdate(r.end,{day:'numeric',month:'short'}),{tip:1})}
+ const nights=tripDays(t).slice(0,-1);if(nights.length){const stays=t.items.filter(i=>i.type==='hotel'&&i.start&&i.end);const miss=nights.filter(d=>!stays.some(s=>s.start.slice(0,10)<=d&&s.end.slice(0,10)>d));add('stay',!miss.length,miss.length?miss.length+(miss.length>1?' nights':' night')+' without a stay':'Stay booked for every night')}
+ const pl=tripPeople(t);pl.forEach(p=>{const nm=pl.length>1?p.name+': ':'';if(!p.passport){add('pp'+p.id,false,nm+'passport expiry not entered',{k2:'me'});return}const need=r.end?addDays(r.end,183):v7today();const ok=p.passport>=need;add('pp'+p.id,ok,ok?nm+'passport valid past 6 months after return':nm+'passport expires '+fdate(p.passport,{day:'numeric',month:'short',year:'numeric'})+', under 6 months after return',{k2:'me'})});
+ const soon=t.items.filter(i=>i.type==='flight'&&i.start&&dayDiff(td,i.start.slice(0,10))>=0&&dayDiff(td,i.start.slice(0,10))<=3&&!i.seat);if(soon.length)add('seat',false,'No seat entered for '+soon.map(itemTitle).join(', '));
+ const p=t.pack||[],dn=p.filter(x=>x.done).length;add('pack',p.length>0&&dn/p.length>=.8,p.length?`Packing ${dn} of ${p.length}`:'Packing list not started');
+ add('offline',!!t.offline,t.offline?'Maps saved offline':'Maps not saved offline');
+ RDY_MANUAL.forEach(([k,l])=>add('m_'+k,!!(t.rdy&&t.rdy[k]),l,{manual:1}));
+ return L}
+function readyCard(t){const r=tripRange(t);if(r.end&&r.end<v7today())return'';const L=readiness(t),ok=L.filter(x=>x.ok).length;
+ return`<div class="card"><div class="row"><h3 class="sp" style="margin:0">Ready to go</h3><span class="pill ${ok===L.length?'green':'amber'}">${ok} / ${L.length}</span></div><div class="bar" style="margin:10px 0 6px"><i style="width:${ok/L.length*100}%"></i></div>
+ ${L.map(x=>`<div class="row" style="padding:7px 0;border-bottom:1px dashed var(--line);cursor:pointer" data-act="rdy" data-k="${x.k}"><span style="width:22px;font-size:17px">${x.ok?'✅':'⚠️'}</span><span class="sp ${x.ok?'mut':''}">${esc(x.txt)}</span></div>`).join('')}</div>`}
+
+/* ---------- 1. countdown ---------- */
+function countdownCard(){const t=nextTrip();if(!t)return'';const r=tripRange(t),dd=dayDiff(v7today(),r.start),L=readiness(t),ok=L.filter(x=>x.ok).length,miss=L.filter(x=>!x.ok&&!x.manual).slice(0,2);
+ return`<div class="card" data-act="openTrip" data-id="${t.id}" style="cursor:pointer"><div class="row"><div style="text-align:center;min-width:74px"><div class="big" style="font-size:46px;text-shadow:2px 2px 0 #4fbbbc,4px 4px 0 #f39120">${dd}</div><div class="mut sm" style="letter-spacing:1.5px">${dd===1?'DAY':'DAYS'}</div></div>
+ <div class="sp"><div class="mut sm">NEXT TRIP</div><div style="font-size:21px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;line-height:1.15">${esc(t.name)}</div><div class="mut sm">${fdate(r.start,{weekday:'short',day:'numeric',month:'short'})}${r.end?' → '+fdate(r.end,{day:'numeric',month:'short'}):''}</div></div></div>
+ <div class="bar" style="margin:10px 0 6px"><i style="width:${ok/L.length*100}%"></i></div><div class="mut sm">Ready ${ok} / ${L.length}${miss.length?' · '+miss.map(x=>esc(x.txt)).join(' · '):''}</div></div>`}
+
+/* ---------- 3. packing templates ---------- */
+const myTpl=()=>S.packTpl||(S.packTpl={});
+function tplChips(){const k=Object.keys(myTpl());return k.length?`<div class="chips" style="padding-bottom:6px">${k.map(n=>`<div class="chip" data-act="packTplMy" data-k="${esc(n)}">★ ${esc(n)}</div>`).join('')}</div>`:''}
+function tplBtns(t){const p=t.pack||[];return`${p.length?'<button class="btn o s" data-act="tplSave">Save as list</button>':''}${S.trips.some(x=>x!==t&&(x.pack||[]).length)?'<button class="btn o s" data-act="packCopy">Copy from trip</button>':''}${Object.keys(myTpl()).length?'<button class="btn o s" data-act="tplDel">My lists</button>':''}`}
+
+/* ---------- 4. day planner ---------- */
+function placeSheet(p){const td=v7today();const opts=[];S.trips.filter(t=>{const r=tripRange(t);return r.start&&(r.end||r.start)>=td}).sort((a,b)=>tripRange(a).start.localeCompare(tripRange(b).start)).forEach(t=>tripDays(t).forEach((d,k)=>{if(d>=td||!tripRange(t).start)opts.push([t.id+'|'+d,`${t.name} · Day ${k+1} · ${fdate(d,{weekday:'short',day:'numeric',month:'short'})}`])}));
+ if(!opts.length){toast('Add a trip with dates first');return}
+ const pre=UI.tripId&&UI.tab==='trips'?opts.find(o=>o[0].startsWith(UI.tripId+'|')):opts[0];
+ openSheet('Add to a trip day',`<div class="mut" style="margin-bottom:8px">${esc(p.name)}</div>`+F('slot','Day',(pre||opts[0])[0],{type:'select',opts:opts.slice(0,120)})+F('time','Time','10:00',{type:'time'})+F('dur','Duration (min)',90,{type:'number'}),v=>{const[tid,d]=v.slot.split('|'),t=trip(tid);if(!t)return false;const s=new Date(d+'T'+(v.time||'10:00')),e=new Date(s.getTime()+(+v.dur||90)*6e4);
+  t.items.push({id:uid(),type:'activity',title:p.name,location:p.name,lat:p.lat,lon:p.lon,start:isoLocal(s),end:isoLocal(e)});save();render();toast('Added to '+t.name)})}
+const stopText=i=>i.lat!=null&&i.lon!=null?i.lat+','+i.lon:(i.address||i.location||'');
+const stopWaze=i=>i.lat!=null&&i.lon!=null?L.waze(i.lat,i.lon):L.wazeQ(stopText(i));
+const stopEarth=i=>i.lat!=null&&i.lon!=null?L.earth(i.lat,i.lon):L.earthQ(stopText(i));
+function dayRoute(its){const st=its.filter(i=>['activity','restaurant','hotel','note'].includes(i.type)&&stopText(i)).sort((a,b)=>(a.start||'').localeCompare(b.start||''));if(!st.length)return'';
+ const now=isoLocal(new Date()),nx=st.find(i=>(i.start||'')>=now)||st[0];let km=0,mins=0,seg='',route='';
+ if(st.length>1){for(let k=1;k<st.length;k++){const a=st[k-1],b=st[k];if(a.lat!=null&&b.lat!=null){const d=hav(a.lat,a.lon,b.lat,b.lon)*1.25;km+=d;const m=d>3?Math.round(d/30*60):Math.round(d/4.8*60);mins+=m;seg+=`<div class="mut sm" style="padding:3px 4px">${d>3?'🚗':'🚶'} ${esc(a.title||'Stop')} → ${esc(b.title||'Stop')} · ${d.toFixed(1)} km · ${m} min</div>`}}
+  const u=`https://www.google.com/maps/dir/?api=1&origin=${enc(stopText(st[0]))}&destination=${enc(stopText(st[st.length-1]))}${st.length>2?'&waypoints='+enc(st.slice(1,-1).map(stopText).join('|')):''}&travelmode=${km>6?'driving':'walking'}`;route=A(u,'🗺️ Day route','btn o s')+(km?`<span class="mut sm">${km.toFixed(1)} km · about ${mins} min</span>`:'')}
+ return`<div style="padding:6px 0 2px">${seg}<div class="row w" style="margin-top:4px">${route}${A(stopWaze(nx),'Waze · '+esc(nx.title||'next stop'),'btn o s')}${A(stopEarth(nx),'🌍 Earth','btn o s')}</div></div>`}
+/* ---------- 5. quick expense ---------- */
+function quickExp(){const t=trip(UI.tripId)||activeTrip();if(!t){toast('Open a trip first');return}UI.qeT=t.id;const cur=tripCur(t);
+ openSheet('Quick expense',`<div class="g2"><label class="f"><b>Amount</b><input id="qa" type="number" inputmode="decimal" step="0.01" style="font-size:26px"></label><label class="f"><b>Currency</b><input id="qc" list="curl" value="${cur}" style="text-transform:uppercase"></label></div><datalist id="curl">${Object.keys(fxRates()).sort().map(c=>`<option value="${c}">`).join('')}</datalist><label class="f"><b>Note</b><input id="qn" type="text"></label><div class="g3">${ECATS.map(c=>`<button class="btn o" data-act="qeCat" data-k="${c[0]}">${c[1]} ${c[2]}</button>`).join('')}</div>`);setTimeout(()=>$('#qa')?.focus(),150)}
+function quickSave(cat){const t=trip(UI.qeT);if(!t)return;const a=parseFloat($('#qa').value);if(!(a>0)){toast('Enter an amount');return}const c=($('#qc').value||'EUR').toUpperCase().trim();if(!fxRates()[c]){toast('No rate for '+c);return}const pl=tripPeople(t);
+ exps(t).push({id:uid(),amt:a,cur:c,eur:Math.round(toEUR(a,c)*100)/100,cat,note:($('#qn').value||'').trim(),date:v7today(),by:'me',split:pl.length>1?pl.map(p=>p.id):[]});save();closeSheet();render();toast('Saved · '+a.toLocaleString(LOC())+' '+c)}
+function quickBar(){const t=activeTrip();if(!t)return'';return`<div class="card"><div class="g3"><button class="btn o" data-act="quickExp" data-id="${t.id}">⚡ Expense</button><button class="btn o" data-act="jToday" data-id="${t.id}">📓 Journal</button><button class="btn o" data-act="search">🔍 Search</button></div></div>`}
+
+/* ---------- 6. trip file ---------- */
+function tripFileSheet(t){openSheet('Share trip file',`<div class="mut" style="margin-bottom:8px">${esc(t.name)}</div>`+F('refs','Booking references',true,{type:'check'})+F('pack','Packing list',true,{type:'check'})+F('jr','Journal text',false,{type:'check'}),async v=>{const o=JSON.parse(JSON.stringify({name:t.name,dest:t.dest,cc:t.cc,start:t.start,end:t.end,notes:t.notes,items:t.items,pack:v.pack?(t.pack||[]):[],journal:v.jr?(t.journal||{}):{}}));
+  o.items.forEach(i=>{delete i.status;delete i.checkedIn;delete i.fare;if(!v.refs)delete i.conf});o.pack.forEach(x=>x.done=0);
+  const txt=dmEnvelope('voyager-trip',o),name='voyager-trip-'+(t.name||'trip').replace(/[^\w]+/g,'-').toLowerCase()+'.json';
+  try{const f=new File([txt],name,{type:'application/json'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:t.name});return}}catch(e){if(e.name==='AbortError')return}
+  dl(name,txt,'application/json');toast('Trip file saved')},{ok:'Share'})}
+function importTripFile(txt){const o=dmOpenEnvelope(txt,'voyager-trip').data;const t={id:uid(),name:o.name||'Trip',dest:o.dest||'',cc:o.cc||'',start:o.start||'',end:o.end||'',notes:o.notes||'',docCount:0,items:(o.items||[]).map(i=>({...i,id:uid()})),pack:(o.pack||[]).map(x=>({...x,id:uid()})),journal:o.journal||{}};S.trips.push(t);save();UI.tab='trips';UI.tripId=t.id;UI.sub='plan';render();toast('Trip added')}
+function shareExtra(t){return`<div class="card"><h3>Trip file</h3><div class="row w"><button class="btn s" data-act="tripFile">Share trip file</button><button class="btn o s" data-act="jPrint">PDF summary</button></div></div>`}
+
+/* ---------- 7. journal ---------- */
+async function jResize(file){try{const bm=await createImageBitmap(file),m=1280,k=Math.min(1,m/Math.max(bm.width,bm.height));const c=document.createElement('canvas');c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext('2d').drawImage(bm,0,0,c.width,c.height);return await new Promise(r=>c.toBlob(r,'image/jpeg',.8))}catch(e){return file}}
+function viewJournal(t){const j=t.journal||(t.journal={}),days=tripDays(t);if(!days.length)return'<div class="empty">Set trip dates to start a journal</div>';const td=v7today();
+ return`<div class="row w" style="margin-bottom:10px"><button class="btn o s" data-act="jPrint">PDF journal</button></div>`+days.map((d,k)=>`<div class="card" data-act="jEdit" data-d="${d}" style="cursor:pointer"><div class="row"><div class="sp"><div style="font:700 18px var(--fh);text-transform:uppercase;letter-spacing:.5px;text-shadow:1.5px 1.5px 0 #4fbbbc,3px 3px 0 #f39120">${fdate(d,{weekday:'short',day:'numeric',month:'short'})}</div><div class="mut sm">Day ${k+1}</div></div>${d===td?'<span class="pill amber">Today</span>':''}</div>
+ ${j[d]?`<div style="margin-top:8px;white-space:pre-wrap">${esc(j[d])}</div>`:'<div class="mut" style="margin-top:8px">＋ Write</div>'}<div class="jph" data-d="${d}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div></div>`).join('')}
+async function jLoad(){const t=trip(UI.tripId);if(!t||UI.sub!=='journal')return;let ph=[];try{ph=(await docsOf(t.id)).filter(d=>d.kind==='jphoto')}catch(e){}
+ $$('.jph').forEach(h=>{ph.filter(p=>p.day===h.dataset.d).forEach(p=>{const im=document.createElement('img');im.className='thumb';im.dataset.act='jPhoto';im.dataset.id=p.id;im.src=URL.createObjectURL(p.blob);h.appendChild(im)})})}
+function jEdit(d){const t=trip(UI.tripId);if(!t)return;const j=t.journal||(t.journal={});
+ openSheet(fdate(d,{weekday:'short',day:'numeric',month:'short'}),F('txt','Notes',j[d]||'',{type:'area',rows:8})+`<label class="f"><b>Photos</b><input type="file" id="jfile" accept="image/*" multiple></label>`,async v=>{const x=(v.txt||'').trim();if(x)j[d]=x;else delete j[d];
+  for(const f of ($('#jfile')?.files||[])){const b=await jResize(f);await docPut({id:'j'+uid(),tripId:t.id,kind:'jphoto',day:d,name:f.name,type:'image/jpeg',size:b.size,added:new Date().toISOString(),blob:b})}save();render()})}
+async function jPhoto(id){const t=trip(UI.tripId);const d=(await docsOf(t.id)).find(x=>x.id===id);if(!d)return;const u=URL.createObjectURL(d.blob);openSheet('Photo',`<img src="${u}" style="width:100%;border-radius:14px;margin-bottom:10px"><button class="btn d b" data-act="jPhotoDel" data-id="${id}">Delete photo</button>`)}
+async function jPrint(){const t=trip(UI.tripId);if(!t)return;const r=tripRange(t),ph=(await docsOf(t.id)).filter(d=>d.kind==='jphoto'),days=tripDays(t),j=t.journal||{};
+ const pics={};for(const p of ph)(pics[p.day]=pics[p.day]||[]).push(await blobToDataUrl(p.blob));
+ const body=days.map((d,k)=>{const its=t.items.filter(i=>(i.start||'').slice(0,10)===d).sort((a,b)=>(a.start||'').localeCompare(b.start||''));if(!j[d]&&!pics[d]&&!its.length)return'';
+  return`<section><h2>${esc(fdate(d,{weekday:'long',day:'numeric',month:'long'}))} <small>Day ${k+1}</small></h2>${its.map(i=>`<div class="it">${TYPES[i.type][0]} ${esc(ftime(i.start))} ${esc(itemTitle(i))}</div>`).join('')}${j[d]?`<p>${esc(j[d])}</p>`:''}${(pics[d]||[]).map(u=>`<img src="${u}">`).join('')}</section>`}).join('');
+ const html=`<!doctype html><meta charset="utf-8"><title>${esc(t.name)}</title><style>body{font:14px/1.5 Arial,sans-serif;color:#173a3c;margin:24px}h1{font-size:28px;margin:0 0 2px;text-transform:uppercase}h2{font-size:17px;margin:20px 0 6px;border-bottom:3px solid #4fbbbc;padding-bottom:3px;text-transform:uppercase}small{color:#5b7c7e;font-weight:400}p{white-space:pre-wrap}img{max-width:48%;margin:4px 4px 0 0;border-radius:6px}.it{color:#5b7c7e}section{break-inside:avoid-page}</style><h1>${esc(t.name)}</h1><div>${esc(t.dest||'')} · ${r.start?esc(fdate(r.start)):''}${r.end?' → '+esc(fdate(r.end)):''}</div>${body||'<p>Nothing written yet.</p>'}`;
+ let f=$('#pf');if(f)f.remove();f=document.createElement('iframe');f.id='pf';f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';document.body.appendChild(f);f.onload=()=>{try{f.contentWindow.focus();f.contentWindow.print()}catch(e){toast('Printing is not available here')}};f.srcdoc=html}
+
+/* ---------- 8. automatic offline ---------- */
+async function wxFetch(t){const g=await ensureGeo(t);if(!g)return;try{const j=await(await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${g.lat}&longitude=${g.lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=16`)).json();if(!j.daily)return;const days={};j.daily.time.forEach((d,k)=>days[d]=[j.daily.weather_code[k],j.daily.temperature_2m_max[k],j.daily.temperature_2m_min[k],j.daily.precipitation_probability_max[k]||0]);t.wx={at:new Date().toISOString(),days};if(j.timezone)t.tz=j.timezone;save()}catch(e){}}
+let autoBusy=false;
+async function autoOffline(){if(autoBusy||S.settings.autoOff==='0'||!navigator.onLine)return;autoBusy=true;try{const td=v7today();
+ for(const t of S.trips.slice()){const r=tripRange(t);if(!r.start||!r.end||r.end<td||dayDiff(td,r.start)>30)continue;
+  if(t.offTry!==td&&(!t.offline||Date.now()-new Date(t.offline.at)>14*864e5)&&window.caches){t.offTry=td;save();await offSave(t.id,true)}
+  if(dayDiff(td,r.start)<=15&&(!t.wx||Date.now()-new Date(t.wx.at)>6*36e5))await wxFetch(t)}
+ render()}catch(e){}finally{autoBusy=false}}
+
+/* ---------- 9. search ---------- */
+function searchSheet(){openSheet('Search',`<input id="qs" type="search" placeholder="Booking ref, place, note…" autocomplete="off" style="margin-bottom:10px"><div id="qres"></div>`);setTimeout(()=>$('#qs')?.focus(),150)}
+function runSearch(q){const T=q.toLowerCase().split(/\s+/).filter(Boolean),out=[];const hit=s=>T.length&&T.every(w=>String(s||'').toLowerCase().includes(w));
+ S.trips.forEach(t=>{if(hit([t.name,t.dest,t.notes].join(' ')))out.push(['🧳',t.name,t.dest||'',t.id,'plan']);
+  t.items.forEach(i=>{if(hit([i.title,i.flightNo,i.airline,i.conf,i.location,i.address,i.notes,i.from,i.to,i.seat].join(' ')))out.push([TYPES[i.type][0],itemTitle(i),t.name+(i.start?' · '+fdt(i.start):'')+(i.conf?' · '+i.conf:''),t.id,'plan'])});
+  exps(t).forEach(e=>{if(hit(e.note))out.push(['🧾',e.note,t.name+' · '+e.amt+' '+e.cur,t.id,'money'])});
+  Object.entries(t.journal||{}).forEach(([d,x])=>{if(hit(x))out.push(['📓',x.slice(0,60),t.name+' · '+fdate(d,{day:'numeric',month:'short'}),t.id,'journal'])});
+  (t.pack||[]).forEach(p=>{if(hit(p.t))out.push(['🎒',p.t,t.name,t.id,'pack'])})});
+ S.gems.forEach(g=>{if(hit([g.name,g.note].join(' ')))out.push(['★',g.name,'Saved place','','gem'])});
+ const h=out.slice(0,40).map(x=>`<div class="row" style="padding:9px 0;border-bottom:1px dashed var(--line);cursor:pointer" data-act="srchGo" data-t="${x[3]}" data-s="${x[4]}"><span style="font-size:20px;width:28px">${x[0]}</span><div class="sp"><div>${esc(x[1])}</div><div class="mut sm">${esc(x[2])}</div></div></div>`).join('');
+ $('#qres').innerHTML=q.trim()?(h||'<div class="empty">No results</div>'):''}
+
+/* ---------- 10. calendar day ---------- */
+function calDay(d){const rows=[],tz=[];const home=Intl.DateTimeFormat().resolvedOptions().timeZone;
+ S.trips.forEach(t=>{const r=tripRange(t);if(!r.start||d<r.start||d>r.end)return;
+  t.items.forEach(i=>{const s=(i.start||'').slice(0,10),e=(i.end||i.start||'').slice(0,10);if(s===d)rows.push([i.start,`${TYPES[i.type][0]} ${ftime(i.start)?ftime(i.start)+" · ":""}${itemTitle(i)}`,t]);else if(i.type==='hotel'&&s<d&&e>d)rows.push(['0',`🏨 Staying · ${i.title||'Stay'}`,t]);else if(i.type==='hotel'&&e===d&&s<d)rows.push(['0',`🏨 Check-out · ${i.title||'Stay'}`,t])});
+  let off=null;try{if(t.tz)off=tzOff(t.tz,D(d))-tzOff(home,D(d))}catch(e){}tz.push([t,off])});
+ if(!tz.length){toast('No trip on this day');return}
+ rows.sort((a,b)=>a[0].localeCompare(b[0]));
+ openSheet(fdate(d,{weekday:'long',day:'numeric',month:'long'}),tz.map(([t,off])=>`<div class="row" style="padding:6px 0" data-act="calOpen" data-id="${t.id}"><b class="sp">${esc(t.name)}</b>${off!=null?`<span class="pill blue">${off===0?'Same time':(off>0?'+':'−')+Math.abs(off)+' h from here'}</span>`:''}</div>`).join('')+(rows.map(([,x])=>`<div style="padding:6px 0;border-top:1px dashed var(--line)">${esc(x)}</div>`).join('')||'<div class="mut" style="padding:6px 0">Nothing planned</div>'))}
+
+/* ---------- wiring ---------- */
+SUBS.splice(6,0,['journal','Journal']);
+const _vShare=viewShare;viewShare=t=>_vShare(t)+shareExtra(t);
+const _todayCard=todayCard;todayCard=()=>_todayCard()+quickBar();
+const _render=render;render=function(){_render.apply(this,arguments);if(UI.tab==='trips'&&UI.tripId&&UI.sub==='journal')jLoad()};
+Object.assign(ACT3,{
+ rdy(d){const t=trip(UI.tripId);if(!t)return;const k=d.k;
+  if(k.startsWith('m_')){t.rdy=t.rdy||{};t.rdy[k.slice(2)]=!t.rdy[k.slice(2)];save();render();return}
+  if(k==='dates')tripSheet(t);else if(k==='stay'||k==='ret')itemSheet(t.id,k==='stay'?'hotel':'flight');else if(k==='pack'){UI.sub='pack';render()}else if(k==='offline')offSave();else if(k.startsWith('pp'))go('me'),UI.tripId=null,render();else if(k==='seat'){UI.sub='plan';render()}},
+ packTplMy(d){const t=trip(UI.tripId),p=t.pack=t.pack||[];(myTpl()[d.k]||[]).forEach(x=>{if(!p.some(y=>y.t===x.t))p.push({id:uid(),t:x.t,cat:x.cat,done:0})});save();render()},
+ tplSave(){const t=trip(UI.tripId);openSheet('Save as list',F('n','List name','',{ph:'Weekend city break'}),v=>{const n=v.n.trim();if(!n)return false;myTpl()[n]=(t.pack||[]).map(x=>({t:x.t,cat:x.cat}));save();render();toast('Saved '+n)},{ok:'Save'})},
+ tplDel(){openSheet('My lists',Object.keys(myTpl()).map(n=>`<div class="row" style="padding:8px 0"><span class="sp">★ ${esc(n)} <span class="mut sm">· ${myTpl()[n].length} items</span></span><button class="btn d s" data-act="tplDelOne" data-k="${esc(n)}">✕</button></div>`).join(''))},
+ tplDelOne(d){delete myTpl()[d.k];save();closeSheet();render()},
+ packCopy(){const t=trip(UI.tripId),o=S.trips.filter(x=>x!==t&&(x.pack||[]).length);openSheet('Copy list from',F('from','Trip',o[0].id,{type:'select',opts:o.map(x=>[x.id,x.name+' · '+x.pack.length+' items'])}),v=>{const s=trip(v.from),p=t.pack=t.pack||[];s.pack.forEach(x=>{if(!p.some(y=>y.t===x.t))p.push({id:uid(),t:x.t,cat:x.cat,done:0})});save();render()},{ok:'Copy'})},
+ placeAdd(d){placeSheet({name:d.n,lat:+d.la,lon:+d.lo})},
+ quickExp(d){if(d.id)UI.tripId=UI.tripId||d.id;quickExp()},qeCat(d){quickSave(d.k)},
+ tripFile(){tripFileSheet(trip(UI.tripId))},jPrint,jEdit:d=>jEdit(d.d),jPhoto:d=>jPhoto(d.id),
+ async jPhotoDel(d){await docDel(d.id);closeSheet();render()},
+ jToday(d){const t=trip(d.id);if(!t)return;UI.tab='trips';UI.tripId=t.id;UI.sub='journal';closeSheet();render()},
+ search:searchSheet,
+ srchGo(d){closeSheet();if(d.s==='gem'){UI.tab='explore';UI.ex.cat='saved';render();return}UI.tab='trips';UI.tripId=d.t;UI.sub=d.s;render()},
+ calDay(d){calDay(d.d)},calOpen(d){closeSheet();UI.tab='trips';UI.tv='list';UI.tripId=d.id;UI.sub='plan';render()}});
+document.addEventListener('input',e=>{if(e.target.id==='qs')runSearch(e.target.value)});
+document.addEventListener('change',e=>{if(e.target.id==='tripfile'){const f=e.target.files[0];e.target.value='';if(f)f.text().then(importTripFile).catch(x=>toast('Not a Voyager trip file'))}});
+addEventListener('online',()=>setTimeout(autoOffline,1500));setTimeout(autoOffline,4000);
+
+/* ---------- v8: Earth links, day trips by drive time ---------- */
+L.earth=(a,b)=>`https://earth.google.com/web/@${a},${b},0a,6000d,35y,0h,0t,0r`;
+L.earthQ=q=>`https://earth.google.com/web/search/${enc(q)}`;
+const DT={beach:['🏖️','Beaches','nwr["natural"="beach"]["name"]'],swim:['🏊','Swim spots','nwr["leisure"~"^(swimming_area|beach_resort)$"]["name"]'],fall:['💧','Waterfalls','nwr["waterway"="waterfall"]["name"]'],view:['🌄','Viewpoints','nwr["tourism"="viewpoint"]["name"]'],hot:['♨️','Hot springs','nwr["natural"="hot_spring"]'],park:['🌲','Nature reserves','nwr["leisure"="nature_reserve"]["name"]'],castle:['🏰','Castles','nwr["historic"="castle"]["name"]']};
+const DRAD=[[23000,'30 min by car'],[46000,'1 h by car'],[70000,'1 h 30 by car'],[92000,'2 h by car'],[140000,'3 h by car']];
+CATS.splice(2,0,['day','Day trips']);
+function driveEst(km){const r=km*1.3,sp=r<20?35:r<60?55:75,m=Math.round(r/sp*60);return(m>=60?Math.floor(m/60)+' h '+String(m%60).padStart(2,'0'):m+' min')+' · '+Math.round(r)+' km by road'}
+function dayChips(){const E=UI.ex;return`<div class="chips">${Object.entries(DT).map(([k,v])=>`<div class="chip ${(E.dsub||'beach')===k?'on':''}" data-act="exDsub" data-k="${k}">${v[0]} ${v[1]}</div>`).join('')}</div>`}
+async function dayTripRun(E){const k=E.dsub||'beach',R=E.drad||46000;const j=await overpass(`[out:json][timeout:40];(${DT[k][2]}(around:${R},${E.lat},${E.lon}););out center tags 250;`);
+ const seen=new Set();E.res=j.elements.map(e=>{const c=ctr(e);if(!c)return null;const t=e.tags||{},km=hav(E.lat,E.lon,c.lat,c.lon),nm=t.name||t['name:en']||DT[k][1].replace(/s$/,'');
+  const ex=[t.surface&&t.surface.replace(/_/g,' '),t.lifeguard==='yes'&&'🛟 lifeguard',t.supervised==='yes'&&'🛟 supervised',t.dog&&t.dog!=='no'&&'🐕 dogs ok',t.nudism==='yes'&&'nudist',t.fee==='yes'&&'fee',t.access==='private'&&'private',t.opening_hours&&'🕒 '+t.opening_hours,t.ele&&t.ele+' m',t.description].filter(Boolean).join(' · ');
+  return{id:e.type+e.id,name:nm,lat:c.lat,lon:c.lon,dist:km*1000,kind:DT[k][1].replace(/s$/,''),extra:ex,drive:driveEst(km)}}).filter(x=>{if(!x||seen.has(x.name+Math.round(x.lat*50)+Math.round(x.lon*50)))return false;seen.add(x.name+Math.round(x.lat*50)+Math.round(x.lon*50));return true}).sort((a,b)=>a.dist-b.dist).slice(0,40)}
+Object.assign(ACT3,{exDsub(d){UI.ex.dsub=d.k;if(UI.ex.lat!=null)exploreRun();else render()},exDrad(d,el){UI.ex.drad=+el.value;if(UI.ex.lat!=null)exploreRun()},
+ async dayIdeas(){const t=trip(UI.tripId);if(!t)return;const g=await ensureGeo(t);if(!g){toast('Add a destination first');return}Object.assign(UI.ex,{lat:g.lat,lon:g.lon,label:t.dest||t.name,cat:'day',q:t.dest||''});UI.tab='explore';render();exploreRun()}});
+
+/* ---------- v8b: nudist beaches, style and price filters for food and drink, review links ---------- */
+DT.nude=['🌞','Nudist beaches','nwr["natural"="beach"]["nudism"~"^(yes|designated|permissive|obligatory)$"]'];
+DT.family=['👨‍👩‍👧','Lifeguarded beaches','nwr["natural"="beach"]["name"]["lifeguard"="yes"]'];
+const gS=(q,la,lo)=>`https://www.google.com/maps/search/${enc(q)}/@${la},${lo},13z`;
+function recoCard(E){const k=E.dsub||'beach',nm=DT[k][1].toLowerCase(),lab=E.label||'';const q=(k==='nude'?'naturist beaches':nm)+(lab?' near '+lab:'');
+ return`<div class="card"><h3>Recommendations</h3><div class="row w">${A(gS('best '+(k==='nude'?'nudist beach':nm.replace(/s$/,'')),E.lat,E.lon),'⭐ Best rated on Maps','btn o s')}${A('https://www.google.com/search?q='+enc(q),'Search the web','btn o s')}${A('https://en.wikivoyage.org/w/index.php?search='+enc((k==='nude'?'naturism ':'')+lab),'Wikivoyage','btn o s')}${A('https://www.tripadvisor.com/Search?q='+enc(q),'TripAdvisor','btn o s')}${A('https://www.reddit.com/search/?q='+enc(q),'Reddit','btn o s')}</div></div>`}
+const STY={italian:['🍝','Italian',/italian|pasta|trattoria|ristorante/],french:['🥖','French',/french|brasserie|bistro/],mexican:['🌮','Mexican',/mexican|taco|tex/],japanese:['🍣','Japanese',/japanese|sushi|ramen/],asian:['🥢','Asian',/chinese|thai|vietnam|korean|asian|dim_sum|indian/],seafood:['🦐','Seafood',/seafood|fish/],burgers:['🍔','Burgers & pizza',/burger|pizza/],veg:['🌿','Vegetarian & vegan',/vegan|vegetarian/],steak:['🥩','Grill & steak',/steak|grill|barbecue|bbq/],local:['🏠','Local cuisine',/regional|local|traditional|mediterranean|spanish|greek|lebanese|turkish|moroccan/]};
+const BSTY={cocktail:['🍸','Cocktails'],wine:['🍷','Wine bars'],beer:['🍺','Beer & pubs'],live:['🎵','Live music'],outdoor:['🌤️','Outdoor seating']};
+const TIERS=[['budget','€ Budget'],['mid','€€ Mid-range'],['up','€€€ Upscale']];
+function priceTier(t){const pr=String(t.price_range||t['price:range']||'').toLowerCase();if(/cheap|low|^€$|^\$$|inexpensive/.test(pr))return'budget';if(/expensive|high|€€€|\$\$\$|luxury/.test(pr))return'up';if(/^(€€|\$\$|medium|moderate)$/.test(pr))return'mid';
+ if(t['award:michelin']||t.michelin||t['michelin:stars']||t.stars||/fine_dining|gourmet/.test(t.cuisine||'')||t.dress_code)return'up';
+ if(/^(fast_food|food_court)$/.test(t.amenity)||/kebab|burger|sandwich|street_food|noodle|bubble_tea|ice_cream|pizza|falafel/.test(t.cuisine||''))return'budget';return'mid'}
+const TIERL={budget:'€',mid:'€€',up:'€€€'};
+function richChips(E){const rest=E.sub==='restaurant';const sty=E.sty||'';
+ const s=rest?Object.entries(STY).map(([k,v])=>[k,v[0]+' '+v[1]]):Object.entries(BSTY).map(([k,v])=>[k,v[0]+' '+v[1]]);
+ const q=rest?((E.tier==='budget'?'cheap eats ':E.tier==='up'?'fine dining ':'')+(sty?STY[sty][1]+' ':'')+'restaurant'):((sty?BSTY[sty][1]:'best bar'));
+ return`<div class="chips">${s.map(([k,l])=>`<div class="chip ${sty===k?'on':''}" data-act="exSty" data-k="${k}">${l}</div>`).join('')}</div><div class="chips">${rest?TIERS.map(([k,l])=>`<div class="chip ${E.tier===k?'on':''}" data-act="exTier" data-k="${k}">${l}</div>`).join(''):''}<div class="chip ${E.open?'on':''}" data-act="exOpen">🟢 Open now</div></div>${E.lat!=null?`<div class="row w" style="margin:2px 0 8px">${A(gS(q.trim(),E.lat,E.lon),'⭐ Best rated on Maps','btn o s')}</div>`:''}`}
+async function richNear(E){const rest=E.sub==='restaurant',R=Math.max(E.rad,1000);
+ const q=rest?`nwr["amenity"~"^(restaurant|fast_food|food_court)$"]["name"](around:${R},${E.lat},${E.lon});`:`nwr["amenity"~"^(bar|pub|biergarten|nightclub)$"]["name"](around:${R},${E.lat},${E.lon});nwr["craft"="brewery"]["name"](around:${R},${E.lat},${E.lon});`;
+ const j=await overpass(`[out:json][timeout:30];(${q});out center tags 300;`);let out=j.elements.map(e=>{const c=ctr(e);if(!c)return null;const t=e.tags||{},cu=(t.cuisine||'').toLowerCase(),nm=(t.name||'').toLowerCase();
+  const veg=t['diet:vegan']==='yes'||t['diet:vegan']==='only'||t['diet:vegetarian']==='yes'||t['diet:vegetarian']==='only'||/vegan|vegetarian/.test(cu);
+  const feat=[veg&&'🌿 veg options',t.outdoor_seating==='yes'&&'outdoor seating',t.takeaway==='yes'&&'takeaway',t.live_music==='yes'&&'🎵 live music',t.wheelchair==='yes'&&'♿',t.opening_hours&&'🕒 '+t.opening_hours].filter(Boolean);
+  const tier=rest?priceTier(t):'';const op=openNow(t.opening_hours);const m={};
+  if(rest)Object.entries(STY).forEach(([k,v])=>{m[k]=v[2].test(cu)||(k==='veg'&&veg)||(k!=='veg'&&v[2].test(nm))});
+  else{m.cocktail=t['drink:cocktail']==='yes'||/cocktail/.test(nm);m.wine=t['drink:wine']==='yes'||/wine|vin\b|vino|vinoteca/.test(nm);m.beer=/^(pub|biergarten)$/.test(t.amenity)||t.craft==='brewery'||t.microbrewery==='yes'||/beer|brew|bier|pub/.test(nm);m.live=t.live_music==='yes';m.outdoor=t.outdoor_seating==='yes'}
+  return{id:e.type+e.id,name:t.name,lat:c.lat,lon:c.lon,dist:hav(E.lat,E.lon,c.lat,c.lon)*1000,kind:(cu?cu.replace(/_/g,' ').split(';')[0]:(t.amenity||'').replace(/_/g,' ')),extra:feat.join(' · '),badge:(tier?`<b>${TIERL[tier]}</b> <span class="mut">estimated from map tags</span>`:'')+(op===true?` <span class="pill green">Open now</span>`:op===false?` <span class="pill">Closed now</span>`:''),tier,op,m}}).filter(Boolean);
+ if(E.sty)out=out.filter(x=>x.m[E.sty]);if(rest&&E.tier)out=out.filter(x=>x.tier===E.tier);if(E.open)out=out.filter(x=>x.op===true);
+ E.res=out.sort((a,b)=>a.dist-b.dist).slice(0,40)}
+Object.assign(ACT3,{exSty(d){UI.ex.sty=UI.ex.sty===d.k?'':d.k;exploreRun()},exTier(d){UI.ex.tier=UI.ex.tier===d.k?'':d.k;exploreRun()}});
+
+/* ---------- v9: open now filter, smart hiking search ---------- */
+const DAYK=['Su','Mo','Tu','We','Th','Fr','Sa'];
+function openNow(oh,now=new Date()){if(!oh)return null;const s=String(oh).trim();if(/^24\/7$/i.test(s))return true;if(/sunrise|sunset|dawn|dusk|week|"|\[|easter/i.test(s))return null;
+ const dow=now.getDay(),mins=now.getHours()*60+now.getMinutes();let state=null,any=false;
+ for(const rule of s.split(';').map(x=>x.trim()).filter(Boolean)){const m=rule.match(/^((?:[A-Za-z]{2}(?:\s*-\s*[A-Za-z]{2})?(?:\s*,\s*)?|PH\s*,?\s*)*)\s*(.*)$/);if(!m)return null;const dp=m[1].trim(),tp=m[2].trim();let days=new Set();
+  if(!dp)DAYK.forEach((_,i)=>days.add(i));else{for(const part of dp.split(',').map(x=>x.trim()).filter(Boolean)){if(part==='PH')continue;const r=part.split('-').map(x=>DAYK.findIndex(d=>d.toLowerCase()===x.trim().toLowerCase()));if(r.some(x=>x<0))return null;if(r.length===1)days.add(r[0]);else{let i=r[0];for(let k=0;k<8;k++){days.add(i);if(i===r[1])break;i=(i+1)%7}}}}
+  any=true;if(!days.has(dow))continue;
+  if(/^(off|closed)$/i.test(tp)){state=false;continue}
+  const rg=[...tp.matchAll(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/g)];if(!rg.length)return null;
+  state=rg.some(g=>{const a=+g[1]*60+ +g[2],b=+g[3]*60+ +g[4];return b>a?mins>=a&&mins<b:mins>=a||mins<b})}
+ return any?(state===null?false:state):null}
+/* hiking */
+const HLEN=[['short','Under 6 km'],['mid','6 – 14 km'],['long','14 – 25 km'],['epic','25 km +']],HDIF=[['easy','Easy'],['mod','Moderate'],['hard','Hard']],HTIME=[['h2','Under 2 h'],['h4','2 – 4 h'],['h6','4 – 6 h'],['day','Full day']];
+const hLenK=k=>k<6?'short':k<14?'mid':k<25?'long':'epic',hTimeK=h=>h<2?'h2':h<4?'h4':h<6?'h6':'day';
+const fmtH=h=>{const m=Math.round(h*60);return Math.floor(m/60)+' h '+String(m%60).padStart(2,'0')};
+function hikeRad(){const E=UI.ex;return`<select data-act="exHr" style="width:auto">${[[10000,'Within 10 km'],[25000,'Within 25 km'],[50000,'Within 50 km'],[100000,'Within 100 km']].map(([v,l])=>`<option value="${v}" ${(E.hr||25000)==v?'selected':''}>${l}</option>`).join('')}</select>`}
+function hikeChips(E){const mode=E.hmode||'trails';let h=`<div class="chips"><div class="chip ${mode==='trails'?'on':''}" data-act="exHmode" data-k="trails">🥾 Trails</div><div class="chip ${mode==='peaks'?'on':''}" data-act="exHmode" data-k="peaks">⛰️ Peaks & huts</div></div>`;
+ if(mode==='trails'){const row=(arr,cur,act)=>`<div class="chips">${arr.map(([k,l])=>`<div class="chip ${cur===k?'on':''}" data-act="${act}" data-k="${k}">${l}</div>`).join('')}</div>`;h+=row(HLEN,E.hlen,'exHf')+row(HDIF,E.hdif,'exHd')+row(HTIME,E.htime,'exHt')+`<div class="chips"><div class="chip ${E.hloop?'on':''}" data-act="exHloop">🔁 Loops only</div></div>`}
+ return h}
+const SAC={hiking:1,mountain_hiking:2,demanding_mountain_hiking:3,alpine_hiking:3,demanding_alpine_hiking:4,difficult_alpine_hiking:4};
+function pathLen(g){let k=0;for(let i=1;i<g.length;i++)k+=hav(g[i-1].lat,g[i-1].lon,g[i].lat,g[i].lon);return k}
+async function hikeStats(rel){const ways=(rel.members||[]).filter(m=>m.type==='way'&&m.geometry&&m.geometry.length>1&&!/^(guidepost|alternative|excursion|approach)$/.test(m.role||'')).map(m=>m.geometry);if(!ways.length)return null;
+ const lens=ways.map(pathLen),tot=lens.reduce((a,b)=>a+b,0);if(!tot)return null;
+ const budget=95,pts=[],seg=[];ways.forEach((g,i)=>{const n=Math.max(2,Math.min(g.length,Math.round(budget*lens[i]/tot)));const idx=[];for(let k=0;k<n;k++)idx.push(Math.round(k*(g.length-1)/(n-1)));const u=[...new Set(idx)];seg.push([pts.length,u.length]);u.forEach(j=>pts.push(g[j]))});
+ let asc=null;if(pts.length<=100||true){try{const P=pts.slice(0,100);const r=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${P.map(p=>p.lat.toFixed(4)).join(',')}&longitude=${P.map(p=>p.lon.toFixed(4)).join(',')}`);const j=await r.json();if(j.elevation&&j.elevation.length===P.length){asc=0;seg.forEach(([st,n])=>{let lo=j.elevation[st];for(let k=st+1;k<st+n&&k<P.length;k++){const e=j.elevation[k];if(e>lo+5){asc+=e-lo;lo=e}else if(e<lo)lo=e}})}}catch(e){}}
+ const first=ways[0][0],lastW=ways[ways.length-1],last=lastW[lastW.length-1];
+ return{km:tot,asc,start:first,loop:hav(first.lat,first.lon,last.lat,last.lon)<.4}}
+function hikeRate(km,asc,sac){const a=asc||0,hrs=km/5+a/600;let d;if(sac!=null)d=sac<=1?(km>12||a>500?2:1):sac===2?3:3;else{const sc=km/8+a/400;d=sc<1.2?1:sc<2.5?2:3}return{hrs,d:['','Easy','Moderate','Hard'][d],dk:['','easy','mod','hard'][d]}}
+function hikeLinks(name,label){const q=enc(name+' '+(label||'').split(',')[0]);return[['AllTrails','alltrails.com'],['Komoot','komoot.com'],['Wikiloc','wikiloc.com'],['Outdooractive','outdooractive.com']].map(([n,s])=>A('https://www.google.com/search?q='+q+'+site:'+s,n,'btn o s')).join('')}
+async function hikeRun(E){if(E.hmode==='peaks'){const R=E.hr||25000;const j=await overpass(`[out:json][timeout:30];(node(around:${R},${E.lat},${E.lon})[natural=peak][name];nwr(around:${R},${E.lat},${E.lon})[tourism~"^(alpine_hut|wilderness_hut)$"][name];);out center tags 80;`);E.res=norm(j.elements,'Peak',E).slice(0,30);return}
+ const R=E.hr||25000;const j=await overpass(`[out:json][timeout:40];relation(around:${R},${E.lat},${E.lon})[route=hiking][name];out center tags 200;`);
+ const seen={};let cand=norm(j.elements,'Trail',E).forEach?j.elements.map(e=>{const c=e.center;if(!c)return null;const t=e.tags;return{id:'r'+e.id,rid:e.id,name:t.name,t,lat:c.lat,lon:c.lon,dist:hav(E.lat,E.lon,c.lat,c.lon)*1000}}).filter(Boolean).sort((a,b)=>a.dist-b.dist):[];
+ cand=cand.filter(x=>{const k=x.name.toLowerCase();if(seen[k])return false;seen[k]=1;return true});
+ const take=cand.slice(E.hn||0,(E.hn||0)+14);E.res=E.res||[];E.res=[];
+ const all=(E.hall=(E.hn?E.hall:[]));
+ for(let i=0;i<take.length;i+=5){const ch=take.slice(i,i+5);try{const g=await overpass(`[out:json][timeout:60];rel(id:${ch.map(x=>x.rid).join(',')});out geom;`);const by={};g.elements.forEach(e=>by[e.id]=e);
+  for(const x of ch){const rel=by[x.rid];let st=null;try{st=rel?await hikeStats(rel):null}catch(e){}const tg=x.t;let km=st?.km??parseFloat(String(tg.distance||'').replace(',','.'))??null;if(!(km>0))continue;const sac=SAC[tg.sac_scale]??null;const asc=st?.asc??(parseFloat(tg.ascent)||null);const R2=hikeRate(km,asc,sac);
+   all.push({id:x.id,name:x.name,lat:x.lat,lon:x.lon,dist:x.dist,kind:'Trail',rel:x.rid,km,asc,hrs:R2.hrs,dk:R2.dk,d:R2.d,loop:tg.roundtrip==='yes'||st?.loop,net:{lwn:'local',rwn:'regional',nwn:'national',iwn:'international'}[tg.network]||'',ref:tg.ref||'',desc:tg.description||''})}}catch(e){}
+  E.res=hikeFilter(all,E);render()}
+ E.hn=(E.hn||0)+take.length;E.hmore=cand.length>E.hn;if(!all.length)throw new Error('No trail with usable data nearby — widen the radius')}
+function hikeFilter(all,E){return all.filter(x=>(!E.hlen||hLenK(x.km)===E.hlen)&&(!E.hdif||x.dk===E.hdif)&&(!E.htime||hTimeK(x.hrs)===E.htime)&&(!E.hloop||x.loop)).map(x=>({...x,extra:[x.net&&x.net+' route',x.ref&&'ref '+x.ref,x.desc].filter(Boolean).join(' · '),badge:`<b>${x.km.toFixed(1)} km</b>${x.asc!=null?' · ↑ '+Math.round(x.asc)+' m':''} · ≈ ${x.km>40?'multi-day':fmtH(x.hrs)} · <span class="pill ${x.dk==='easy'?'green':x.dk==='mod'?'amber':'red'}">${x.d}</span>${x.loop?' · 🔁 loop':''}`,sites:hikeLinks(x.name,UI.ex.label)}))}
+function hikeTop(E){const r=(E.res||[])[0];if(!r)return'';const why=[E.hlen&&HLEN.find(x=>x[0]===E.hlen)[1],E.hdif&&HDIF.find(x=>x[0]===E.hdif)[1],E.htime&&HTIME.find(x=>x[0]===E.htime)[1]].filter(Boolean).join(' · ');
+ return`<div class="card"><div class="mut sm">TOP PICK${why?' · '+esc(why):''}</div><div style="font:700 20px var(--fh);text-transform:uppercase;letter-spacing:.5px">${esc(r.name)}</div><div class="sm">${r.badge}</div><div class="mut sm" style="margin-top:4px">${(r.dist/1000).toFixed(0)} km away${E.hn&&E.hmore?' · '+E.hn+' routes checked':''}</div></div>`}
+function hikeFoot(E){return`${E.hmore?`<button class="btn o b" data-act="exHmore" style="margin:6px 0 10px">Check more routes</button>`:''}<div class="card"><h3>Compare on other sites</h3><div class="row w">${hikeLinks('best hikes',E.label)}${A('https://hiking.waymarkedtrails.org/#?map=11!'+E.lat+'!'+E.lon,'Waymarked Trails','btn o s')}</div></div>`}
+Object.assign(ACT3,{exHr(d,el){UI.ex.hr=+el.value;UI.ex.hn=0;if(UI.ex.lat!=null)exploreRun()},exHmode(d){UI.ex.hmode=d.k;UI.ex.hn=0;exploreRun()},
+ exHf(d){UI.ex.hlen=UI.ex.hlen===d.k?'':d.k;refilter()},exHd(d){UI.ex.hdif=UI.ex.hdif===d.k?'':d.k;refilter()},exHt(d){UI.ex.htime=UI.ex.htime===d.k?'':d.k;refilter()},exHloop(){UI.ex.hloop=!UI.ex.hloop;refilter()},
+ async exHmore(){UI.ex.loading=false;toast('Checking more routes…');try{await hikeRun(UI.ex)}catch(e){UI.ex.err=e.message}render()},
+ exOpen(){UI.ex.open=!UI.ex.open;exploreRun()}});
+function refilter(){const E=UI.ex;E.res=hikeFilter(E.hall||[],E);render()}
+
+/* ===== v10: plan my day, packing suggestions, budget forecast, backup reminder, French ===== */
+
+/* ---------- plan my day ---------- */
+const PD={beach:['🏖️','Beach','10:30',120],hike:['🥾','Hike','09:00',240],food:['🍽️','Lunch','13:00',90],culture:['🏛️','Museum','11:00',90]};
+function dayPlanBtn(d){return d>=v7today()?`<div style="padding:4px 0"><button class="btn o s" data-act="planDay" data-d="${d}">✨ Plan my day</button></div>`:''}
+function planDay(d){const t=trip(UI.tripId);if(!t)return;const w=t.wx?.days?.[d],rain=w&&w[3]>=50;
+ const wl=w?`<div class="row" style="margin-bottom:8px"><span style="font-size:28px">${wxIcon(w[0])}</span><span class="sp"><b style="font-weight:500">${Math.round(w[2])}° / ${Math.round(w[1])}°</b>${w[3]>=40?`<div class="mut sm">Rain ${w[3]}%</div>`:''}</span></div>`:'';
+ openSheet('Plan my day · '+fdate(d,{weekday:'short',day:'numeric',month:'short'}),wl+F('beach','Beach',!rain,{type:'check'})+F('hike','Hike',!rain,{type:'check'})+F('food','Lunch spot',true,{type:'check'})+F('culture','Museums and culture',!!rain,{type:'check'})+F('drad','Travel by car up to',46000,{type:'select',opts:DRAD.map(([v,l])=>[v,l.replace(' by car','')])}),async v=>{
+  if(!(v.beach||v.hike||v.food||v.culture)){toast('Choose at least one');return false}
+  const g=await ensureGeo(t);if(!g){toast('Add a destination first');return false}
+  toast('Searching…');const out={};const base={lat:g.lat,lon:g.lon,label:t.dest||t.name};
+  const R=+v.drad||46000;
+  if(v.beach)try{const E={...base,dsub:'beach',drad:R,res:[]};await dayTripRun(E);out.beach=E.res.slice(0,3)}catch(e){}
+  if(v.hike)try{const E={...base,hr:Math.min(R,50000),hmode:'trails',res:[],hall:[],hn:0};await hikeRun(E);out.hike=(E.hall||[]).slice().sort((a,b)=>Math.abs(a.km-10)-Math.abs(b.km-10)).slice(0,3).map(x=>({...x,drive:x.d+' · '+x.km.toFixed(1)+' km · ≈ '+fmtH(x.hrs)}))}catch(e){}
+  if(v.food)try{const E={...base,rad:3000,sub:'restaurant',tier:'',res:[]};await richNear(E);out.food=E.res.slice(0,3)}catch(e){}
+  if(v.culture)try{const j=await overpass(`[out:json][timeout:30];nwr["tourism"~"^(museum|gallery)$"]["name"](around:4000,${g.lat},${g.lon});out center tags 60;`);out.culture=norm(j.elements,'Museum',base).slice(0,3)}catch(e){}
+  const keys=Object.keys(out).filter(k=>out[k].length);if(!keys.length){toast('Nothing found nearby');return false}
+  UI.pd={d,tid:t.id,out};
+  openSheet('Pick for '+fdate(d,{weekday:'short',day:'numeric',month:'short'}),keys.map(k=>`<div class="lab" style="margin:8px 0 4px">${PD[k][0]} ${PD[k][1]}</div>`+out[k].map((r,i)=>F(`${k}_${i}`,`${esc(r.name)}<div class="mut sm" style="font-weight:400;text-transform:none;letter-spacing:0">${esc(r.drive||(r.dist<1000?Math.round(r.dist)+' m':(r.dist/1000).toFixed(1)+' km'))}</div>`,i===0,{type:'check'})).join('')+F('time_'+k,'Time',PD[k][2],{type:'time'})).join(''),v2=>{
+   const P=UI.pd,tt=trip(P.tid);let n=0;Object.keys(P.out).forEach(k=>P.out[k].forEach((r,i)=>{if(!v2[`${k}_${i}`])return;const s=new Date(P.d+'T'+(v2['time_'+k]||PD[k][2])),e=new Date(s.getTime()+PD[k][3]*6e4);
+    tt.items.push({id:uid(),type:k==='food'?'restaurant':'activity',title:r.name,location:r.name,lat:r.lat,lon:r.lon,start:isoLocal(s),end:isoLocal(e),notes:k==='hike'?(r.km.toFixed(1)+' km · ≈ '+fmtH(r.hrs)+' · '+r.d):''});n++}));save();render();toast(n+(n===1?' stop added':' stops added'))},{ok:'Add to day'});
+  return false},{ok:'Find'})}
+
+/* ---------- packing suggestions ---------- */
+PACK.Sun=['Sunscreen','Sunglasses','Hat','Reusable water bottle'];PACK.Rain=['Umbrella','Rain jacket','Waterproof bag'];PACK.Long=['Laundry bag','Travel detergent','Spare charging cable'];
+function packSuggest(t){const txt=(t.items.map(i=>[i.title,i.location,i.notes].join(' ')).join(' ')+' '+(t.name||'')+' '+(t.notes||'')).toLowerCase();const have=new Set((t.pack||[]).map(x=>x.t)),add=[],why=[];
+ const grp=(k,r)=>{const n=PACK[k].filter(x=>!have.has(x)&&!add.some(a=>a.t===x));if(n.length){n.forEach(x=>add.push({t:x,cat:k}));why.push(r)}};
+ if(!(t.pack||[]).length)grp('Essentials','Essentials');
+ if(/beach|plage|playa|snorkel|swim|baignade|nudist|naturist/.test(txt))grp('Beach','Beach plans');
+ if(/hike|hiking|trek|trail|rando|sendero|randonn/.test(txt))grp('Hiking','Hiking plans');
+ if(/\bski|snowboard|piste/.test(txt))grp('Ski','Ski plans');
+ const wd=Object.values(t.wx?.days||{});if(wd.length){const mn=Math.min(...wd.map(x=>x[2])),mx=Math.max(...wd.map(x=>x[1])),rn=Math.max(...wd.map(x=>x[3]));
+  if(mn<8)grp('Cold','Down to '+Math.round(mn)+'°');if(mx>=27)grp('Sun','Up to '+Math.round(mx)+'°');if(rn>=50)grp('Rain','Rain likely')}
+ if(tripNights(t)>=8)grp('Long','Long trip');
+ return{add,why}}
+function suggestCard(t){const s=packSuggest(t);if(!s.add.length)return'';
+ return`<div class="card"><div class="row"><h3 class="sp" style="margin:0">Suggested for this trip</h3><span class="pill">${s.add.length}</span></div><div class="row w" style="margin:8px 0">${s.why.map(w=>`<span class="pill blue">${esc(w)}</span>`).join('')}</div><div class="mut sm" style="margin-bottom:8px">${s.add.slice(0,8).map(x=>esc(x.t)).join(' · ')}${s.add.length>8?' …':''}</div><button class="btn s" data-act="packSugg">Add ${s.add.length} items</button></div>`}
+const _vPack=viewPack;viewPack=t=>suggestCard(t)+_vPack(t);
+
+/* ---------- budget forecast ---------- */
+function paceOf(t){const ex=exps(t);if(!ex.length)return null;const ds=new Set(ex.map(e=>e.date)),eur=ex.reduce((s,e)=>s+e.eur,0),r=tripRange(t),td=v7today();let n=ds.size;if(r.start&&td>=r.start)n=Math.max(n,dayDiff(r.start,r.end&&td>r.end?r.end:td)+1);return n>=2?{perDay:eur/n,days:n}:null}
+function forecastCard(t){const r=tripRange(t);if(!r.start||!r.end)return'';const td=v7today(),days=dayDiff(r.start,r.end)+1,bk=bookingsEUR(t).sum,started=td>=r.start;let rate=null,src='';
+ const own=started?paceOf(t):null;if(own){rate=own.perDay;src='your pace so far'}else{const o=S.trips.filter(x=>x!==t).map(paceOf).filter(Boolean);if(o.length){rate=o.reduce((s,x)=>s+x.perDay,0)/o.length;src='your average on past trips'}}
+ if(rate==null)return'';const spent=exps(t).reduce((s,e)=>s+e.eur,0),done=started?Math.min(days,dayDiff(r.start,td>r.end?r.end:td)+1):0,proj=bk+spent+rate*Math.max(0,days-done);
+ return`<div class="card"><div class="mut sm">FORECAST</div><div class="big">${money(proj)}</div><div class="mut sm">${money(rate)} a day, based on ${src}${bk?' · bookings '+money(bk):''}</div>${t.budget?`<div class="bar" style="margin:8px 0"><i style="width:${Math.min(100,proj/t.budget*100)}%${proj>t.budget?';background:var(--bad)':''}"></i></div><span class="pill ${proj>t.budget?'red':'green'}">${proj>t.budget?money(proj-t.budget)+' over budget':money(t.budget-proj)+' under budget'}</span>`:''}</div>`}
+const _vMoney=viewMoney;viewMoney=t=>forecastCard(t)+_vMoney(t);
+
+/* ---------- backup reminder ---------- */
+function backupBanner(){if(!S.trips.length)return'';const n=S._chg||0,last=S.lastBackup?Math.floor((Date.now()-new Date(S.lastBackup))/864e5):null,sn=S.settings.bkSnooze;if(sn&&sn>v7today())return'';
+ if(!((last===null&&n>=12)||(last!==null&&last>=3&&n>=30)||(last!==null&&last>=30)))return'';
+ return`<div class="card"><div class="row"><div class="sp"><b style="font-weight:500">Back up your trips</b><div class="mut sm">${last===null?'Never backed up':'Last backup '+last+' days ago'} · ${n} changes since</div></div><button class="btn s" data-act="exportAll">Back up</button><button class="btn o s" data-act="bkLater">Later</button></div></div>`}
+Object.assign(ACT3,{planDay(d){planDay(d.d)},packSugg(){const t=trip(UI.tripId),s=packSuggest(t),p=t.pack=t.pack||[];s.add.forEach(x=>p.push({id:uid(),t:x.t,cat:x.cat,done:0}));save();render();toast(s.add.length+' items added')},bkLater(){S.settings.bkSnooze=addDays(v7today(),3);save();render()}});
+
+/* ---------- French for the new screens ---------- */
+Object.assign(FR,{'Ready to go':'Prêt à partir','Dates set':'Dates définies','Add trip dates':'Ajouter les dates','Return travel booked':'Retour réservé','No transport added':'Aucun transport ajouté','Stay booked for every night':'Hébergement pour chaque nuit','Packing list not started':'Liste de valise non commencée','Maps saved offline':'Cartes enregistrées hors ligne','Maps not saved offline':'Cartes non enregistrées hors ligne','Travel insurance':'Assurance voyage','Visa / entry permit':'Visa / autorisation d’entrée','Cash and cards':'Espèces et cartes','NEXT TRIP':'PROCHAIN VOYAGE','DAYS':'JOURS','DAY':'JOUR',
+'Save as list':'Enregistrer la liste','Copy from trip':'Copier d’un voyage','My lists':'Mes listes','Save as list ':'Enregistrer la liste','Suggested for this trip':'Suggestions pour ce voyage','Essentials':'Indispensables','Beach plans':'Projets plage','Hiking plans':'Projets rando','Ski plans':'Projets ski','Rain likely':'Pluie probable','Long trip':'Long voyage',
+'⚡ Quick':'⚡ Rapide','Quick expense':'Dépense rapide','🍽️ Food':'🍽️ Repas','🚕 Transport':'🚕 Transport','🏨 Stay':'🏨 Hébergement','🎟️ Activities':'🎟️ Activités','🛍️ Shopping':'🛍️ Achats','🧾 Other':'🧾 Autre','FORECAST':'PRÉVISION',
+'Share trip file':'Partager le fichier du voyage','PDF summary':'Résumé PDF','Trip file':'Fichier du voyage','Import trip file':'Importer un voyage','Share trip file ':'Partager le voyage','Booking references':'Références de réservation','Packing list':'Liste de valise','Journal text':'Texte du journal','Share':'Partager','Journal':'Journal','PDF journal':'Journal en PDF','＋ Write':'+ Écrire','Notes':'Notes','Photos':'Photos','Photo':'Photo','Delete photo':'Supprimer la photo','Today':'Aujourd’hui',
+'Search':'Rechercher','No results':'Aucun résultat','⚡ Expense':'⚡ Dépense','📓 Journal':'📓 Journal','🔍 Search':'🔍 Rechercher','Same time':'Même heure',
+'Add to a trip day':'Ajouter à un jour','＋ Trip day':'+ Jour du voyage','🏖️ Day trips':'🏖️ Sorties','Day trips':'Sorties','🗺️ Day route':'🗺️ Itinéraire du jour','🌍 Earth':'🌍 Earth','Earth':'Earth','⭐ Reviews':'⭐ Avis','⭐ Best rated on Maps':'⭐ Mieux notés sur Maps','Search the web':'Chercher sur le web','Recommendations':'Recommandations','Compare on other sites':'Comparer sur d’autres sites',
+'✨ Plan my day':'✨ Planifier ma journée','Find':'Trouver','Add to day':'Ajouter au jour','Beach':'Plage','Hike':'Randonnée','Lunch spot':'Déjeuner','Museums and culture':'Musées et culture','Travel by car up to':'En voiture jusqu’à','Time':'Heure','Duration (min)':'Durée (min)','Day':'Jour',
+'🏖️ Beaches':'🏖️ Plages','🌞 Nudist beaches':'🌞 Plages naturistes','👨‍👩‍👧 Lifeguarded beaches':'👨‍👩‍👧 Plages surveillées','🏊 Swim spots':'🏊 Baignades','💧 Waterfalls':'💧 Cascades','🌄 Viewpoints':'🌄 Points de vue','♨️ Hot springs':'♨️ Sources chaudes','🌲 Nature reserves':'🌲 Réserves naturelles','🏰 Castles':'🏰 Châteaux',
+'🥾 Trails':'🥾 Sentiers','⛰️ Peaks & huts':'⛰️ Sommets et refuges','Under 6 km':'Moins de 6 km','6 – 14 km':'6 – 14 km','14 – 25 km':'14 – 25 km','25 km +':'25 km et +','Easy':'Facile','Moderate':'Modéré','Hard':'Difficile','Under 2 h':'Moins de 2 h','2 – 4 h':'2 – 4 h','4 – 6 h':'4 – 6 h','Full day':'Journée','🔁 Loops only':'🔁 Boucles seulement','Check more routes':'Voir plus de sentiers','TOP PICK':'MEILLEUR CHOIX','Trail':'Sentier',
+'🟢 Open now':'🟢 Ouvert maintenant','Open now':'Ouvert','Closed now':'Fermé','€ Budget':'€ Économique','€€ Mid-range':'€€ Moyen','€€€ Upscale':'€€€ Haut de gamme','🍝 Italian':'🍝 Italien','🥖 French':'🥖 Français','🌮 Mexican':'🌮 Mexicain','🍣 Japanese':'🍣 Japonais','🥢 Asian':'🥢 Asiatique','🦐 Seafood':'🦐 Fruits de mer','🍔 Burgers & pizza':'🍔 Burgers et pizzas','🌿 Vegetarian & vegan':'🌿 Végétarien et vegan','🥩 Grill & steak':'🥩 Grillades','🏠 Local cuisine':'🏠 Cuisine locale','🍸 Cocktails':'🍸 Cocktails','🍷 Wine bars':'🍷 Bars à vin','🍺 Beer & pubs':'🍺 Bières et pubs','🎵 Live music':'🎵 Musique live','🌤️ Outdoor seating':'🌤️ Terrasse',
+'Back up your trips':'Sauvegardez vos voyages','Back up':'Sauvegarder','Later':'Plus tard','Save maps automatically':'Enregistrer les cartes automatiquement','On':'Oui','Off':'Non','Travel Workout trip':'Voyage Travel Workout'});
+function frRule(k){let m;
+ if(k.includes(' · ')){const ps=k.split(' · '),o=ps.map(x=>FR[x]!==undefined?FR[x]:frRule(x)||x);return o.join(' · ')!==k?o.join(' · '):null}
+ if(m=k.match(/^Last backup (\d+) days? ago$/))return'Dernière sauvegarde il y a '+m[1]+' j';
+ if(k==='Never backed up')return'Jamais sauvegardé';
+ if(m=k.match(/^(\d+) changes? since$/))return m[1]+' modifications depuis';
+ if(m=k.match(/^(\d+) flights?$/))return m[1]+' vol'+(m[1]==='1'?'':'s');
+ if(m=k.match(/^(\d+) items?$/))return m[1]+' élément'+(m[1]==='1'?'':'s');
+ if(m=k.match(/^(\d+) nights?$/))return m[1]+(m[1]==='1'?' nuit':' nuits');
+ if(k==='passport expiry not entered')return'expiration du passeport non renseignée';
+ if(k==='Never backed up')return k;
+ if(m=k.match(/^(\d+) nights? without a stay$/))return m[1]+(m[1]==='1'?' nuit':' nuits')+' sans hébergement';
+ if(m=k.match(/^Packing (\d+) of (\d+)$/))return'Valise '+m[1]+' sur '+m[2];
+ if(m=k.match(/^Ready (\d+) \/ (\d+)/))return'Prêt '+m[1]+' / '+m[2]+k.slice(m[0].length);
+ if(m=k.match(/^Within (\d+) km$/))return'À moins de '+m[1]+' km';
+ if(m=k.match(/^(.+) by car$/))return m[1].replace(/ min$/,' min').replace(/^(\d) h$/,'$1 h')+' en voiture';
+ if(m=k.match(/^Add (\d+) items$/))return'Ajouter '+m[1]+' éléments';
+ if(m=k.match(/^(\d+) days? to /))return k.replace(/ to /,' avant ');
+ if(m=k.match(/^Day (\d+)$/))return'Jour '+m[1];
+ if(m=k.match(/^Staying · (.*)$/))return'Sur place · '+m[1];
+ if(m=k.match(/^Check-out · (.*)$/))return'Départ de l’hébergement · '+m[1];
+ if(m=k.match(/^(.+) estimated from map tags$/))return m[1]+' estimé d’après les données de carte';
+ if(m=k.match(/^(.+) local time$/))return k;return null}
 
 /* ===== RENDER ===== */
 UI.acc={};
@@ -1098,7 +1426,7 @@ function render(){const keep=window.scrollY;
  const SUBT={explore:'Nearby · Hidden gems · Trails',go:'Flight · Airport · Baggage',tools:'Wallet · Currency · Stats',me:'Profile · Travellers · Backup'};
  const sub=tr0?[r0.start?fdate(r0.start,{day:'numeric',month:'short'}):'',r0.end?'→ '+fdate(r0.end,{day:'numeric',month:'short'}):'',tripNights(tr0)+' nights'].filter(Boolean).join(' '):(UI.tab==='tools'&&UI.tool?(TOOLS.find(t=>t[0]===UI.tool)?.[3]||''):(SUBT[UI.tab]||''));
  const sz=title==='Voyager'?'':(String(title).length>16?' xs':' s');
- $('#hdr').innerHTML=`${back?`<button class="hb bk" data-act="back">‹</button>`:''}<div class="tt"><h1 class="disco${sz}">${esc(title)}${title==='Voyager'?'<span class="by">by DM</span>':''}</h1>${sub?`<div class="sub">${esc(sub)}</div>`:''}</div><div class="hr"><button class="hb" data-act="alerts">🔔${al?`<span class="cnt">${al}</span>`:''}</button><div class="dt">${dt}</div></div>`;
+ $('#hdr').innerHTML=`${back?`<button class="hb bk" data-act="back">‹</button>`:''}<div class="tt"><h1 class="disco${sz}">${esc(title)}${title==='Voyager'?'<span class="by">by DM</span>':''}</h1>${sub?`<div class="sub">${esc(sub)}</div>`:''}</div><div class="hr"><div class="row" style="gap:8px"><button class="hb" data-act="search">🔍</button><button class="hb" data-act="alerts">🔔${al?`<span class="cnt">${al}</span>`:''}</button></div><div class="dt">${dt}</div></div>`;
  $('#nav').innerHTML=NAV.map(([k,ic,l])=>`<button class="${UI.tab===k?'on':''}" data-act="tab" data-t="${k}"><span>${ic}</span>${l}</button>`).join('');
  if(!(UI.tab==='tools'&&UI.tool==='wallet'))UI.wOpen=false;
  const V={trips:viewTrips,explore:viewExplore,go:viewGo,tools:viewTools,me:viewMe}[UI.tab];
@@ -1144,7 +1472,7 @@ const ACT={
  /* explore */
  async exGo(){const E=UI.ex;const q=($('#exq')?.value??E.q??'').trim();if(!q)return toast('Enter a place');E.q=q;E.loading=true;E.err='';render();try{Object.assign(E,await geocode(q))}catch(e){E.loading=false;E.err=e.message;render();return}exploreRun()},
  exLoc(){if(!navigator.geolocation)return toast('Location not available');navigator.geolocation.getCurrentPosition(p=>{Object.assign(UI.ex,{lat:p.coords.latitude,lon:p.coords.longitude,label:'My location',q:'My location'});exploreRun()},()=>toast('Location permission denied'),{timeout:10000})},
- exCat(d){UI.ex.cat=d.k;UI.ex.res=[];render();if(['near','gems','hike','transit'].includes(d.k))exploreRun()},
+ exCat(d){UI.ex.cat=d.k;UI.ex.res=[];render();if(['near','gems','hike','transit','day'].includes(d.k))exploreRun()},
  exSub(d){UI.ex.sub=d.k;exploreRun()},
  exSave(d){const r=UI.ex.res.find(x=>x.id===d.id)||S.gems.find(x=>x.id===d.id);const k=S.gems.findIndex(x=>x.id===d.id);if(k>=0)S.gems.splice(k,1);else{S.gems.push({id:r.id,name:r.name,lat:r.lat,lon:r.lon,kind:r.kind,note:r.extra?.slice(0,140)||'',thumb:r.thumb,url:r.url});toast('Saved')}save();render()},
  safetyAdd(){safetySheet()},safetyDel(d){S.safety=S.safety.filter(x=>x.id!==d.id);save();render()},
