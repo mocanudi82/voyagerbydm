@@ -1,3 +1,0 @@
-.sw{display:flex;gap:8px;flex-wrap:wrap}.sw i{display:block;width:54px;height:54px;border-radius:16px;border:1px solid #fff6;box-shadow:0 4px 10px var(--sh)}.sw span{display:block;font-size:11px;text-align:center;margin-top:3px;color:var(--mut);letter-spacing:.5px}
-.apps{display:grid;grid-template-columns:1fr 1fr;gap:10px}.app{border-radius:20px;padding:14px;background:var(--card);border:1px solid #ffffff55;box-shadow:0 6px 18px var(--sh)}.app b{display:block;font:700 20px var(--fh);text-transform:uppercase;text-shadow:1.5px 1.5px 0 #4fbbbc,3px 3px 0 #f39120}
-.edf{background:#fff;border:2px dashed #7a8a99;color:#33495c}.edf b{text-shadow:none;color:#1e4e79}
