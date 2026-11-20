@@ -541,7 +541,7 @@ function viewTrips(){
  ${up.map(card).join('')||`<div class="empty">No upcoming trips</div>`}
  ${past.length?`<h3 style="font-size:18px;text-transform:uppercase;letter-spacing:1px;margin:18px 0 10px">Past</h3>${past.map(card).join('')}`:''}
  ${S.trips.length?'':`<div class="card"><button class="btn b" data-act="demo">Load sample trip</button></div>`}
- <div class="row w" style="margin-top:14px"><label class="btn o s">Import trip file<input type="file" id="tripfile" accept=".json,application/json" hidden></label></div>`}
+ <div class="row w" style="margin-top:14px"><button class="btn o s" data-act="importNew">📥 Trip from email</button><label class="btn o s">Import trip file<input type="file" id="tripfile" accept=".json,application/json" hidden></label></div>`}
 /* ===== TRIP DETAIL ===== */
 const SUBS=[['plan','Plan'],['crew','People'],['money','Money'],['pack','Pack'],['docs','Docs'],['share','Share'],['info','Info'],['alerts','Alerts']];
 function viewTrip(){const t=trip(UI.tripId);if(!t){UI.tripId=null;return viewTrips()}
@@ -918,7 +918,7 @@ async function exportAll(withDocs=true,pw=''){const data=JSON.parse(JSON.stringi
  const o={app:'wayfar',v:2,at:new Date().toISOString(),data,docs:[]};
  if(withDocs){try{for(const d of await docAll())o.docs.push({id:d.id,tripId:d.tripId,name:d.name,type:d.type,size:d.size,added:d.added,url:await blobToDataUrl(d.blob)})}catch(e){}}
  if(pw){const vault={wallet:wal,pnos,files:[]};for(const w of wal){try{const r=await walGet(w.id);if(r)vault.files.push({id:w.id,url:await blobToDataUrl(r.blob)})}catch(e){}}o.vault=await encText(JSON.stringify(vault),pw)}
- S.lastBackup=o.at;save();S._chg=0;save();return JSON.stringify(o)}
+ S.lastBackup=o.at;save();S._chg=-1;save();return JSON.stringify(o)}
 async function importBackup(txt){const o=JSON.parse(txt);if(o.app!=='wayfar')throw new Error('Not a Voyager backup');const old=S;S={...defaults(),...o.data};S.settings={...defaults().settings,...S.settings};S.profile={...defaults().profile,...S.profile};
  S.wallet=old.wallet||[];S.settings.pin=old.settings?.pin||'';S.profile.passportNo=old.profile?.passportNo||'';(S.people||[]).forEach(p=>{const q=(old.people||[]).find(x=>x.id===p.id);if(q?.pno)p.pno=q.pno});save();
  for(const d of o.docs||[]){await docPut({id:d.id,tripId:d.tripId,name:d.name,type:d.type,size:d.size,added:d.added,blob:await dataUrlToBlob(d.url)})}UI.tripId=null;render();toast('Backup restored');if(o.vault)vaultSheet(o.vault)}
@@ -1106,7 +1106,7 @@ function readiness(t){const r=tripRange(t),td=v7today(),L=[];const add=(k,ok,txt
  const tr=t.items.filter(i=>['flight','rail','car'].includes(i.type));
  if(r.start&&r.end&&r.start!==r.end){const ret=tr.some(i=>(i.start||'').slice(0,10)>=addDays(r.end,-1));add('ret',!tr.length||ret,ret||!tr.length?(tr.length?'Return travel booked':'No transport added'):'No return travel on '+fdate(r.end,{day:'numeric',month:'short'}),{tip:1})}
  const nights=tripDays(t).slice(0,-1);if(nights.length){const stays=t.items.filter(i=>i.type==='hotel'&&i.start&&i.end);const miss=nights.filter(d=>!stays.some(s=>s.start.slice(0,10)<=d&&s.end.slice(0,10)>d));add('stay',!miss.length,miss.length?miss.length+(miss.length>1?' nights':' night')+' without a stay':'Stay booked for every night')}
- const pl=tripPeople(t);pl.forEach(p=>{const nm=pl.length>1?p.name+': ':'';if(!p.passport){add('pp'+p.id,false,nm+'passport expiry not entered',{k2:'me'});return}const need=r.end?addDays(r.end,183):v7today();const ok=p.passport>=need;add('pp'+p.id,ok,ok?nm+'passport valid past 6 months after return':nm+'passport expires '+fdate(p.passport,{day:'numeric',month:'short',year:'numeric'})+', under 6 months after return',{k2:'me'})});
+ const pl=tripPeople(t);pl.forEach(p=>{const nm=pl.length>1?p.name+': ':'';if(!p.passport){add('pp'+p.id,false,nm+'Passport expiry not entered',{k2:'me'});return}const need=r.end?addDays(r.end,183):v7today();const ok=p.passport>=need;add('pp'+p.id,ok,ok?nm+'passport valid past 6 months after return':nm+'passport expires '+fdate(p.passport,{day:'numeric',month:'short',year:'numeric'})+', under 6 months after return',{k2:'me'})});
  const soon=t.items.filter(i=>i.type==='flight'&&i.start&&dayDiff(td,i.start.slice(0,10))>=0&&dayDiff(td,i.start.slice(0,10))<=3&&!i.seat);if(soon.length)add('seat',false,'No seat entered for '+soon.map(itemTitle).join(', '));
  const p=t.pack||[],dn=p.filter(x=>x.done).length;add('pack',p.length>0&&dn/p.length>=.8,p.length?`Packing ${dn} of ${p.length}`:'Packing list not started');
  add('offline',!!t.offline,t.offline?'Maps saved offline':'Maps not saved offline');
@@ -1399,7 +1399,7 @@ function frRule(k){let m;
  if(m=k.match(/^(\d+) flights?$/))return m[1]+' vol'+(m[1]==='1'?'':'s');
  if(m=k.match(/^(\d+) items?$/))return m[1]+' élément'+(m[1]==='1'?'':'s');
  if(m=k.match(/^(\d+) nights?$/))return m[1]+(m[1]==='1'?' nuit':' nuits');
- if(k==='passport expiry not entered')return'expiration du passeport non renseignée';
+ if(k==='Passport expiry not entered')return'Expiration du passeport non renseignée';
  if(k==='Never backed up')return k;
  if(m=k.match(/^(\d+) nights? without a stay$/))return m[1]+(m[1]==='1'?' nuit':' nuits')+' sans hébergement';
  if(m=k.match(/^Packing (\d+) of (\d+)$/))return'Valise '+m[1]+' sur '+m[2];
@@ -1413,6 +1413,142 @@ function frRule(k){let m;
  if(m=k.match(/^Check-out · (.*)$/))return'Départ de l’hébergement · '+m[1];
  if(m=k.match(/^(.+) estimated from map tags$/))return m[1]+' estimé d’après les données de carte';
  if(m=k.match(/^(.+) local time$/))return k;return null}
+
+/* ===== v11: import bookings from email (paste, .eml, .html, .txt) ===== */
+`LPA|Gran Canaria|Las Palmas|ES|27.9319|-15.3866
+TFS|Tenerife South|Tenerife|ES|28.0445|-16.5725
+TFN|Tenerife North|Tenerife|ES|28.4827|-16.3415
+ACE|Lanzarote|Lanzarote|ES|28.9455|-13.6052
+FUE|Fuerteventura|Fuerteventura|ES|28.4527|-13.8638
+SPC|La Palma|La Palma|ES|28.6265|-17.7556
+GMZ|La Gomera|La Gomera|ES|28.0296|-17.2146
+VDE|El Hierro|El Hierro|ES|27.8148|-17.8871
+IBZ|Ibiza|Ibiza|ES|38.8729|1.3731
+MAH|Menorca|Menorca|ES|39.8626|4.2186
+ALC|Alicante|Alicante|ES|38.2822|-0.5582
+VLC|Valencia|Valencia|ES|39.4893|-0.4816
+SVQ|Seville|Seville|ES|37.418|-5.8931
+BIO|Bilbao|Bilbao|ES|43.3011|-2.9106
+FAO|Faro|Faro|PT|37.0144|-7.9659
+FNC|Madeira|Funchal|PT|32.6979|-16.7745
+PDL|Ponta Delgada|Azores|PT|37.7412|-25.6979
+MLA|Malta|Malta|MT|35.8575|14.4775
+BVA|Paris Beauvais|Paris|FR|49.4544|2.1128
+BIQ|Biarritz|Biarritz|FR|43.4684|-1.5233
+AJA|Ajaccio|Ajaccio|FR|41.9236|8.8029
+BIA|Bastia|Bastia|FR|42.5527|9.4837
+CFE|Clermont-Ferrand|Clermont|FR|45.7867|3.1692
+ETZ|Metz-Nancy|Metz|FR|48.9821|6.2513
+BSL|Basel-Mulhouse|Basel|CH|47.59|7.5291
+BLQ|Bologna|Bologna|IT|44.5354|11.2887
+CTA|Catania|Catania|IT|37.4668|15.0664
+PMO|Palermo|Palermo|IT|38.1759|13.091
+CAG|Cagliari|Cagliari|IT|39.2515|9.0543
+PSA|Pisa|Pisa|IT|43.6839|10.3927
+BGY|Bergamo|Milan|IT|45.6739|9.7042
+CIA|Rome Ciampino|Rome|IT|41.7994|12.5949
+TLV|Tel Aviv|Tel Aviv|IL|32.0114|34.8867
+AMM|Amman|Amman|JO|31.7226|35.9932
+PUJ|Punta Cana|Punta Cana|DO|18.5674|-68.3634
+HAV|Havana|Havana|CU|22.9892|-82.4091
+SJO|San Jose|San Jose|CR|9.9939|-84.2088
+PTY|Panama City|Panama City|PA|9.0714|-79.3835
+SJD|Los Cabos|Los Cabos|MX|23.1518|-109.7210
+PVR|Puerto Vallarta|Puerto Vallarta|MX|20.6801|-105.2544
+TQO|Tulum|Tulum|MX|20.2189|-87.4311
+MLE|Male|Male|MV|4.1918|73.5290
+CMB|Colombo|Colombo|LK|7.1808|79.8841
+BCN2|x|x|ES|0|0`.split('\n').forEach(l=>{const[c,n,city,cc,la,lo]=l.split('|');if(c.length===3&&!AP[c])AP[c]={code:c,name:n,city,cc,lat:+la,lon:+lo}});
+
+const AIRL={AF:'Air France',KL:'KLM',IB:'Iberia',I2:'Iberia Express',VY:'Vueling',FR:'Ryanair',U2:'easyJet',EC:'easyJet',TO:'Transavia',HV:'Transavia',BA:'British Airways',LH:'Lufthansa',LX:'Swiss',OS:'Austrian',SN:'Brussels Airlines',TP:'TAP Air Portugal',UX:'Air Europa',NT:'Binter Canarias',DS:'easyJet Switzerland',W6:'Wizz Air',W4:'Wizz Air',AZ:'ITA Airways',EW:'Eurowings',SK:'SAS',AY:'Finnair',TK:'Turkish Airlines',EK:'Emirates',QR:'Qatar Airways',EY:'Etihad',AM:'Aeroméxico',AA:'American Airlines',DL:'Delta',UA:'United',AC:'Air Canada',LA:'LATAM',AV:'Avianca',KE:'Korean Air',JL:'Japan Airlines',NH:'ANA',SQ:'Singapore Airlines',CX:'Cathay Pacific',QF:'Qantas',AT:'Royal Air Maroc',TU:'Tunisair',MS:'EgyptAir',ET:'Ethiopian',SV:'Saudia',VS:'Virgin Atlantic',DY:'Norwegian',D8:'Norwegian',BT:'airBaltic',LO:'LOT',OK:'Czech Airlines',RO:'Tarom',A3:'Aegean',PC:'Pegasus',XQ:'SunExpress',V7:'Volotea',XK:'Air Corsica',SS:'Corsair',TX:'Air Caraïbes',BF:'French Bee',MU:'China Eastern',CA:'Air China',AI:'Air India'};
+const RENT=['Hertz','Avis','Europcar','Sixt','Enterprise','Budget','Alamo','National','Thrifty','Dollar','Cabrera Medina','Goldcar','Record Go','Autoreisen','Ada','Rent a Car','Rentalcars','Drivalia','Centauro','Ucar','Locauto','Maggiore','Firefly','Cicar','Payless','Ouigo','Getaround','Free2move','Leasys','Virtuo','Zity'];
+const MR='(?:jan|ene|feb|f[eé]v|mar|abr|apr|avr|may|mai|jun|juin|jul|juil|aug|ago|ao[uû]|sep|sept|set|oct|nov|dec|d[eé]c|dic)[a-zéû]*';
+const mo7=w=>{w=w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\./g,'');if(w.startsWith('juil'))return 7;if(w.startsWith('juin'))return 6;const k=w.slice(0,3);return({jan:1,ene:1,feb:2,fev:2,mar:3,abr:4,apr:4,avr:4,may:5,mai:5,jun:6,jul:7,aug:8,ago:8,aou:8,sep:9,set:9,oct:10,nov:11,dec:12,dic:12})[k]||0};
+function dates7(s,ref){const o=[];let m;const iso=(Y,M,Dd)=>`${Y}-${pad(M)}-${pad(Dd)}`;const ry=ref?+ref.slice(0,4):new Date().getFullYear();
+ const fix=(Y,M,Dd,has)=>{if(has)return iso(Y,M,Dd);let y=ry;const c=iso(y,M,Dd);if(ref&&c<addDays(ref,-120))y++;return iso(y,M,Dd)};
+ const push=(i,len,d)=>{if(!o.some(x=>i<x.e&&i+len>x.i))o.push({i,e:i+len,d})};
+ let r=/\b(20\d\d)-(\d\d)-(\d\d)\b/g;while(m=r.exec(s))push(m.index,m[0].length,m[0]);
+ r=/\b(\d{1,2})[\/.](\d{1,2})[\/.](20\d\d)\b/g;while(m=r.exec(s))push(m.index,m[0].length,iso(m[3],+m[2],+m[1]));
+ r=new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th|er|º)?\\s+(?:de\\s+)?('+MR+')\\.?,?(?:\\s+de)?(?:\\s+(20\\d\\d))?(?!\\d)','gi');while(m=r.exec(s)){const mo=mo7(m[2]);if(mo&&+m[1]>=1&&+m[1]<=31)push(m.index,m[0].length,fix(m[3],mo,+m[1],!!m[3]))}
+ r=new RegExp('\\b('+MR+')\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?!\\d)(?:,?\\s+(20\\d\\d))?','gi');while(m=r.exec(s)){const mo=mo7(m[1]);if(mo&&+m[2]>=1&&+m[2]<=31)push(m.index,m[0].length,fix(m[3],mo,+m[2],!!m[3]))}
+ return o.sort((a,b)=>a.i-b.i)}
+const after7=(arr,i,max)=>arr.find(x=>x.i>=i&&x.i<=i+max);
+function mw7(s){return s.replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g,(m,cs,e,t)=>e.toUpperCase()==='B'?dec7(t,'base64',cs):dec7(t.replace(/_/g,' '),'quoted-printable',cs))}
+function dec7(body,enc,cs){let b;enc=(enc||'').toLowerCase();
+ if(enc==='base64'){try{b=Uint8Array.from(atob(body.replace(/\s/g,'')),c=>c.charCodeAt(0))}catch(e){b=new TextEncoder().encode(body)}}
+ else if(enc==='quoted-printable'){const t=body.replace(/=\r?\n/g,'');const a=[];for(let i=0;i<t.length;i++){if(t[i]==='='&&/^[0-9A-Fa-f]{2}$/.test(t.slice(i+1,i+3))){a.push(parseInt(t.slice(i+1,i+3),16));i+=2}else a.push(t.charCodeAt(i)&255)}b=Uint8Array.from(a)}
+ else b=new TextEncoder().encode(body);
+ try{return new TextDecoder(cs||'utf-8').decode(b)}catch(e){return new TextDecoder().decode(b)}}
+function mime7(raw){const i=raw.search(/\r?\n\r?\n/);if(i<0)return{head:'',plain:raw,html:''};const head=raw.slice(0,i).replace(/\r?\n[ \t]+/g,' '),body=raw.slice(i).replace(/^\r?\n\r?\n/,'');
+ const h=n=>(head.match(new RegExp('^'+n+':\\s*(.*)$','im'))||[])[1]||'';const ct=h('Content-Type'),enc=h('Content-Transfer-Encoding'),bm=/boundary="?([^";\s]+)"?/i.exec(ct);
+ if(bm){let pl='',ht='';body.split('--'+bm[1]).slice(1).forEach(p=>{if(/^--/.test(p.trim())||!p.trim())return;const r=mime7(p.replace(/^\r?\n/,''));pl+=r.plain+'\n';ht+=r.html+'\n'});return{head,plain:pl,html:ht}}
+ const cs=(/charset="?([\w-]+)/i.exec(ct)||[])[1],txt=dec7(body,enc,cs);return/text\/html/i.test(ct)?{head,plain:'',html:txt}:/text\/plain|^$/i.test(ct)||!ct?{head,plain:txt,html:''}:{head,plain:'',html:''}}
+function html2txt(s){s=s.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<!--[\s\S]*?-->/gi,' ').replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d|table|section)>/gi,'\n').replace(/<\/t[dh]>/gi,'  ').replace(/<[^>]+>/g,' ');const ta=document.createElement('textarea');ta.innerHTML=s.replace(/</g,'&lt;');return ta.value}
+function clean7(raw){raw=String(raw||'');let sub='',s=raw;
+ if(/^(?:Received|Return-Path|From|To|Subject|Date|MIME-Version|Content-Type|Message-ID|Delivered-To|X-[\w-]+):/im.test(raw.slice(0,3000))&&/\r?\n\r?\n/.test(raw)){const r=mime7(raw);sub=mw7((r.head.match(/^Subject:\s*(.*)$/im)||[])[1]||'');const a=r.plain.trim(),b=html2txt(r.html);s=(b.trim().length>a.length*1.2?b:a)||b}
+ else if(/<(html|body|table|div|p)\b/i.test(raw))s=html2txt(raw);
+ s=s.replace(/\r/g,'').replace(/[ \t\u00a0]+/g,' ').replace(/ *\n */g,'\n').replace(/\n{2,}/g,'\n').trim();return(sub?sub+'\n':'')+s}
+const lbl7=(T,re,req)=>{const m=new RegExp('(?:'+re+')\\s*[:\\-–]'+(req?'':'?')+'\\s*([^\\n]{2,120})','i').exec(T);return m?m[1].trim():''};
+function price7(T,near){const re=/(?:total(?: price| amount| cost)?|prix total|montant(?: total)?|precio total|importe(?: total)?|amount due|you paid|price|prix)\s*[:\-–]?\s*((?:€|EUR|USD|US\$|\$|£|GBP|MXN)\s?\d[\d.,\s]*\d|\d[\d.,\s]*\d\s?(?:€|EUR|USD|\$|£|GBP|MXN))/ig;let m,last=null;while(m=re.exec(T)){if(near==null||Math.abs(m.index-near)<900){last=m[1].replace(/\s+/g,' ').trim();if(/total/i.test(m[0]))break}}return last||''}
+function conf7(T,from){const re=/(?:confirmation(?: number| no\.?| code)?|booking(?: number| reference| ref\.?| id)?|reservation(?: number| code)?|reference|PNR|record locator|locator|r[ée]servation|n[°º]|dossier|localizador|c[oó]digo de reserva|num[eé]ro de r[ée]servation)(?=\s*[:#\-–]?\s*([A-Za-z0-9][A-Za-z0-9\-]{4,15})\b)/gi;let m;const S0=T.slice(from||0);while(m=re.exec(S0)){const c=m[1];if(!/^[A-Z0-9\-]+$/.test(c))continue;if(/\d/.test(c)||/^[A-Z]{6}$/.test(c))return c}return''}
+function flights7(T,ref,out){if(!/flight|\bvol\b|vuelo|boarding|e-?ticket|billet|passenger|passager|pasajero|airline|compagnie a[ée]rienne|aerol[ií]nea|itinerary|itin[ée]raire/i.test(T))return;
+ const dates=dates7(T,ref),times=[];let m;const rt=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)\s?(am|pm|AM|PM)?/g;while(m=rt.exec(T)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}times.push({i:m.index,t:pad(h)+':'+m[2]})}
+ const fr=/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})\b/g,fm=[];while(m=fr.exec(T)){if(!/[A-Z]/.test(m[1]))continue;if(!AIRL[m[1]]&&!/(flight|vol|vuelo|n°)\s*$/i.test(T.slice(Math.max(0,m.index-12),m.index)))continue;fm.push({i:m.index,no:m[1]+m[2],al:m[1]})}
+ const seen=new Set();fm.forEach((f,k)=>{const end=k+1<fm.length?fm[k+1].i:f.i+450,ctx=T.slice(f.i,Math.min(end,f.i+450)),pre=T.slice(Math.max(0,f.i-120),f.i);
+  const codes=[...(pre+' '+ctx).matchAll(/\b[A-Z]{3}\b/g)].map(x=>x[0]).filter((c,ix,a)=>AP[c]&&a.indexOf(c)===ix);let cc=[...ctx.matchAll(/\b[A-Z]{3}\b/g)].map(x=>x[0]).filter((c,ix,a)=>AP[c]&&a.indexOf(c)===ix);if(cc.length<2)cc=codes;if(cc.length<2)return;
+  const dn=dates.filter(d=>d.i<=f.i+450&&d.i>=f.i-250).sort((a,b)=>Math.abs(a.i-f.i)-Math.abs(b.i-f.i))[0]||dates.filter(d=>d.i<f.i).pop()||dates[0];
+  const ts=times.filter(x=>x.i>f.i&&x.i<f.i+450),date=dn?.d||'',dep=ts[0]?.t||'',arr=ts[1]?.t||'';let ad=date;if(dep&&arr&&arr<dep&&date)ad=addDays(date,1);
+  const key=f.no+cc[0]+cc[1]+date;if(seen.has(key))return;seen.add(key);
+  const term=(/terminal\s*([A-Z0-9]{1,3})\b/i.exec(ctx)||[])[1],seat=(/(?:seat|si[eè]ge|asiento)\s*[:#]?\s*(\d{1,2}[A-K])\b/i.exec(ctx)||[])[1],cab=(/\b(economy|premium economy|business|first|[ée]conomique|turista|affaires)\b/i.exec(ctx)||[])[1];
+  out.push({type:'flight',airline:AIRL[f.al]||'',flightNo:f.no,from:cc[0],to:cc[1],start:date?date+'T'+(dep||'00:00'):'',end:date&&arr?ad+'T'+arr:'',conf:conf7(T,Math.max(0,f.i-1500))||conf7(T),...(term?{terminal:term.toUpperCase()}:{}),...(seat?{seat}:{}),...(cab?{cabin:cab[0].toUpperCase()+cab.slice(1)}:{})})})}
+function car7(T,ref,out){const co=RENT.find(r=>new RegExp('\\b'+r.replace(/ /g,'\\s')+'\\b','i').test(T));
+ if(!(/(car rental|rental car|car hire|location de voiture|location de v[ée]hicule|alquiler de (coche|veh[ií]culo)|rent a car|pick[- ]?up|prise en charge|retrait du v|recogida)/i.test(T)&&/(drop[- ]?off|return|restitution|retour du v|devoluci[oó]n|entrega)/i.test(T))&&!(co&&/(vehicle|car|voiture|v[ée]hicule|coche)/i.test(T)&&/(pick|prise|recogida|retrait)/i.test(T)))return;
+ const dates=dates7(T,ref),times=[];let m;const rt=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)\s?(am|pm|AM|PM)?/g;while(m=rt.exec(T)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}times.push({i:m.index,t:pad(h)+':'+m[2]})}
+ const pk=/pick[- ]?up|prise en charge|retrait|recogida/i.exec(T),dr=/drop[- ]?off|return|restitution|retour|devoluci[oó]n|entrega/i.exec(T.slice(pk?pk.index+8:0));const dri=dr?(pk?pk.index+8:0)+dr.index:-1;
+ const d1=pk?after7(dates,pk.index,260):dates[0],d2=dri>=0?after7(dates,dri,260):dates.find(d=>d1&&d.d>d1.d);const t1=pk?after7(times,pk.index,260):times[0],t2=dri>=0?after7(times,dri,260):null;
+ const pl=lbl7(T,'pick[- ]?up (?:location|branch|station)|lieu de (?:retrait|prise en charge)|recogida en|lugar de recogida|pick[- ]?up'),dl=lbl7(T,'drop[- ]?off (?:location|branch|station)|return (?:location|branch|station)|lieu de (?:restitution|retour)|devoluci[oó]n en|lugar de devoluci[oó]n|drop[- ]?off|return to'),
+  veh=(/([A-Z][\w\- ]{2,28}) (?:or similar|ou similaire|o similar)/.exec(T)||[])[1]||lbl7(T,'(?:vehicle|car|v[ée]hicule|veh[ií]culo|category|cat[ée]gorie|group)');
+ const clean=x=>x.replace(/\s{2,}.*$/,'').replace(/\b(date|time|heure|hora|fecha).*$/i,'').trim();
+ if(!d1)return;out.push({type:'car',title:(co||'Car rental')+(veh?' · '+clean(veh).slice(0,30):''),location:clean(pl).slice(0,80),start:d1.d+'T'+(t1?.t||'10:00'),end:d2?d2.d+'T'+(t2?.t||'10:00'):'',conf:conf7(T,pk?Math.max(0,pk.index-1200):0)||conf7(T),cost:price7(T,pk?pk.index:null),notes:dl&&clean(dl)!==clean(pl)?'Return: '+clean(dl).slice(0,80):''})}
+function hotel7(T,ref,out){const ci=/check[- ]?in|arriv[ée]e|arrival|entrada|llegada|fecha de entrada/i.exec(T),co=/check[- ]?out|d[ée]part|departure|salida|fecha de salida/i.exec(T);if(!ci||!co)return;
+ if(/pick[- ]?up|drop[- ]?off|car rental|location de voiture/i.test(T)&&!/h[oô]tel|hotel|apartment|airbnb|booking\.com|resort|villa|b&b|hostel|lodge|riad|alojamiento|hébergement|accommodation|stay/i.test(T))return;
+ const dates=dates7(T,ref),times=[];let m;const rt=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)\s?(am|pm|AM|PM)?/g;while(m=rt.exec(T)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}times.push({i:m.index,t:pad(h)+':'+m[2]})}
+ const d1=after7(dates,ci.index,200),d2=after7(dates,co.index,200);if(!d1)return;const a1=after7(times,ci.index,Math.max(40,(d1?d1.i-ci.index:0)+60)),a2=after7(times,co.index,Math.max(40,(d2?d2.i-co.index:0)+60));
+ let name=lbl7(T,'(?:h[oô]tel|hotel|property|accommodation|h[ée]bergement|[ée]tablissement|alojamiento|propiedad|nom de l.[ée]tablissement)',1);
+ if(!name){const ln=T.split('\n').map(x=>x.trim()).find(l=>/h[oô]tel|hotel|resort|\binn\b|suites?\b|hostel|apartment|apartamento|lodge|riad|villa|b&b/i.test(l)&&l.length<90&&!/check|booking\.com|confirm/i.test(l));name=ln||''}
+ if(!name){const sm=/(?:at|à|en|chez)\s+([A-Z][^\n,.|]{3,60})/.exec(T.split('\n')[0]);name=sm?sm[1]:''}
+ name=name.replace(/^h[oô]tel\s*:\s*/i,'').replace(/^[^A-Za-zÀ-ÿ0-9]+/,'').replace(/\s{2,}.*$/,'').slice(0,70);
+ const addr=lbl7(T,'address|adresse|direcci[oó]n').replace(/\s{2,}.*$/,'').slice(0,120);
+ out.push({type:'hotel',title:name||'Stay',address:addr,start:d1.d+'T'+(a1?.t||'15:00'),end:d2?d2.d+'T'+(a2?.t||'11:00'):'',conf:conf7(T),cost:price7(T,null)})}
+function ics7(raw,out){const L=raw.replace(/\r/g,'').replace(/\n[ \t]/g,'').split('\n');let ev=null;const dt=v=>{const m=/(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d))?/.exec(v||'');return m?m[1]+'-'+m[2]+'-'+m[3]+'T'+(m[4]?m[4]+':'+m[5]:'00:00'):''};const un=x=>(x||'').replace(/\\n/gi,'\n').replace(/\\([,;\\])/g,'$1');
+ L.forEach(l=>{if(l==='BEGIN:VEVENT')ev={};else if(l==='END:VEVENT'&&ev){const sum=un(ev.SUMMARY),loc=un(ev.LOCATION),des=un(ev.DESCRIPTION),txt=sum+'\n'+loc+'\n'+des,start=dt(ev.DTSTART),end=dt(ev.DTEND),fn=/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})\b/.exec(txt),codes=[...txt.matchAll(/\b[A-Z]{3}\b/g)].map(x=>x[0]).filter((c,i,a)=>AP[c]&&a.indexOf(c)===i);
+  const conf=conf7(txt);
+  if(fn&&AIRL[fn[1]]&&codes.length>=2)out.push({type:'flight',airline:AIRL[fn[1]],flightNo:fn[1]+fn[2],from:codes[0],to:codes[1],start,end,conf});
+  else if(/h[oô]tel|hotel|check-?in|apartment|airbnb|resort|villa/i.test(txt))out.push({type:'hotel',title:sum.replace(/^(check-?in|stay|booking)\s*[:\-–]?\s*/i,'').slice(0,70),address:loc.slice(0,120),start:start.length>10&&!/T00:00$/.test(start)?start:start.slice(0,10)+'T15:00',end:end.slice(0,10)+'T11:00',conf});
+  else if(/car rental|rental car|hertz|avis|europcar|sixt|enterprise|alquiler de coche|location de voiture/i.test(txt))out.push({type:'car',title:sum.slice(0,50),location:loc.slice(0,80),start,end,conf});
+  else out.push({type:'activity',title:sum.slice(0,70),location:loc.slice(0,80),start,end,conf,notes:des.slice(0,200)});ev=null}
+  else if(ev){const m=/^([A-Z\-]+)(?:;[^:]*)?:(.*)$/.exec(l);if(m&&!(m[1] in ev))ev[m[1]]=m[2]}})}
+function parseEmail(raw,ref){if(/BEGIN:VEVENT/.test(raw)&&/BEGIN:VCALENDAR/.test(raw)){const o=[];ics7(raw,o);if(o.length)return o}
+ const T=clean7(raw),out=[];flights7(T,ref,out);car7(T,ref,out);hotel7(T,ref,out);
+ if(!out.length){const ds=dates7(T,ref);out.push({type:'note',title:(T.split('\n').find(l=>l.trim())||'Imported note').slice(0,60),notes:T.slice(0,600),start:ds[0]?ds[0].d+'T09:00':''})}return out}
+function dup7(t,x){return t.items.some(i=>i.type===x.type&&((x.type==='flight'&&i.flightNo===x.flightNo&&(i.start||'').slice(0,10)===(x.start||'').slice(0,10))||(x.type!=='flight'&&x.conf&&i.conf===x.conf)||(x.type!=='flight'&&!x.conf&&(i.title||'')===x.title&&(i.start||'').slice(0,10)===(x.start||'').slice(0,10))))}
+function importSheet(){const nt=!!UI._newTrip;openSheet('Add from email',`<textarea data-f="txt" rows="9" placeholder="Paste email text"></textarea><div class="row w" style="margin:10px 0"><button class="btn o s" data-act="mailPaste">📋 Paste</button><label class="btn o s" style="margin:0;cursor:pointer">📎 File<input type="file" id="mailFile" accept=".eml,.html,.htm,.txt,.mht,message/rfc822,text/*" multiple hidden></label></div>`,v=>{const txt=(v.txt||'').trim();if(!txt){toast('Nothing to read');return false}
+ const t=nt?{items:[],start:''}:trip(UI.tripId),ref=nt?'':(tripRange(t).start||t.start||'');const parts=txt.split(/\n={5,}\n/).filter(x=>x.trim());let d=[];parts.forEach(p=>d.push(...parseEmail(p,ref)));
+ d.forEach(x=>{x._dup=dup7(t,x)});UI._drafts=d;setTimeout(reviewDrafts,50)},{ok:'Detect'})}
+function reviewDrafts(){const d=UI._drafts,nt=!!UI._newTrip,t=nt?{items:[]}:trip(UI.tripId);
+ const row=(x,k)=>`<div class="card" style="padding:12px"><label class="row" style="align-items:flex-start;margin:0"><input type="checkbox" data-f="c${k}" ${x._dup||x.type==='note'?'':'checked'}><div class="sp"><div style="font-weight:500">${TYPES[x.type][0]} ${esc(itemTitle(x))}</div><div class="mut sm">${fdt(x.start)||'No date found'}${x.end?' → '+(x.end.slice(0,10)===(x.start||'').slice(0,10)?ftime(x.end):fdt(x.end)):''}${x.conf?' · ref '+esc(x.conf):''}${x.cost?' · '+esc(x.cost):''}</div>${x.address||x.location?`<div class="mut sm">${esc(x.address||x.location)}</div>`:''}${x._dup?'<div class="pill">Already in trip</div>':''}</div></label>
+ <div style="margin-top:8px">${F('s'+k,'Start',(x.start||'').slice(0,16),{type:'datetime-local'})}${F('e'+k,'End',(x.end||'').slice(0,16),{type:'datetime-local'})}</div></div>`;
+ openSheet('Review',d.map(row).join(''),v=>{let n=0;let t2=t;if(nt)t2=null;const add=[];d.forEach((x,k)=>{if(!v['c'+k])return;const{_dup,...it}=x;if(v['s'+k])it.start=v['s'+k];if(v['e'+k])it.end=v['e'+k];add.push({id:uid(),...it});n++});
+  if(nt){if(!n){toast('Select something to add');return false}const fl=add.filter(i=>i.type==='flight'),h=add.find(i=>i.type==='hotel'),ap=fl.length?AP[fl[0].to]:null,dest=ap?ap.city:(h?h.title:'');const nw={id:uid(),name:dest||'New trip',dest:dest||'',cc:ap?ap.cc:'',items:add,docCount:0,notes:'',start:'',end:''};S.trips.push(nw);UI.tripId=nw.id;UI.sub='plan';UI.tab='trips';UI._newTrip=false;t2=nw}else add.forEach(i=>t.items.push(i));const tg=t2;
+  if(n&&!tg.start){const ds=tg.items.map(i=>(i.start||'').slice(0,10)).filter(Boolean).sort();if(ds.length){tg.start=ds[0];const es=tg.items.map(i=>(i.end||i.start||'').slice(0,10)).filter(Boolean).sort();tg.end=es[es.length-1]}}
+  save();render();toast(n+(n===1?' item added':' items added'))},{ok:'Add selected'})}
+Object.assign(ACT3,{async mailPaste(){try{const s=await navigator.clipboard.readText();const ta=document.querySelector('textarea[data-f=txt]');if(ta&&s){ta.value=(ta.value?ta.value+'\n=====\n':'')+s;toast('Pasted')}else toast('Clipboard is empty')}catch(e){toast('Clipboard not available')}}});
+document.addEventListener('change',async e=>{if(e.target.id!=='mailFile')return;const fs=[...e.target.files];e.target.value='';const ta=document.querySelector('textarea[data-f=txt]');if(!ta)return;
+ for(const f of fs){try{const s=await f.text();ta.value=(ta.value?ta.value+'\n=====\n':'')+s}catch(x){toast('Could not read '+f.name)}}if(fs.length)toast(fs.length+(fs.length===1?' file loaded':' files loaded'))});
+Object.assign(FR,{'Add from email':'Ajouter depuis un e-mail','Paste email text':'Coller le texte de l’e-mail','📋 Paste':'📋 Coller','📎 File':'📎 Fichier','Detect':'Détecter','Review':'Vérifier','Add selected':'Ajouter la sélection','Already in trip':'Déjà dans le voyage','No date found':'Aucune date trouvée','Nothing to read':'Rien à lire','Pasted':'Collé','Clipboard is empty':'Presse-papiers vide','Clipboard not available':'Presse-papiers indisponible'});
+
+Object.assign(ACT3,{importNew(){UI._newTrip=true;importSheet()}});
+Object.assign(FR,{'📥 Trip from email':'📥 Voyage depuis un e-mail','Select something to add':'Sélectionnez quelque chose à ajouter','New trip':'Nouveau voyage'});
 
 /* ===== RENDER ===== */
 UI.acc={};
@@ -1452,7 +1588,7 @@ const ACT={
  itemType(d){const v=vals();itemSheet(UI._item.tid,d.k,null,{...v,id:UI._item.id})},
  itemMenu(d){itemMenu(d.id)},editItem(d){closeSheet();itemSheet(UI.tripId,null,getItem(UI.tripId,d.id))},
  delItem(d){const t=trip(UI.tripId);closeSheet();t.items=t.items.filter(i=>i.id!==d.id);save();render()},
- importMail(){importSheet()},
+ importMail(){UI._newTrip=false;importSheet()},
  exportIcs(){const t=trip(UI.tripId);dl((t.name||'trip').replace(/\W+/g,'_')+'.ics',tripICS(t),'text/calendar');toast('Calendar file ready — open it to add events & alarms')},
  tripMap(){const t=trip(UI.tripId);const h=t.items.find(i=>i.type==='hotel');UI.ex.q=h?(h.address||h.title)+' '+(t.dest||''):t.dest||'';UI.tab='explore';render();ACT.exGo()},
  exHotel(d){const t=trip(UI.tripId),h=getItem(t.id,d.id);closeSheet();UI.ex.q=(h.address||h.title)+' '+(t.dest||'');UI.ex.cat='near';UI.tab='explore';render();ACT.exGo()},
