@@ -613,6 +613,7 @@ function itemSheet(tid,type,it,pre){const t=trip(tid);it=it||pre||{};type=type||
  const dl='';
  UI._item={tid,id:it.id,type};
  openSheet((it.id?'Edit ':'Add ')+TYPES[type][1],tabs+f+dl+(it.id?`<button class="btn d b" data-act="delItem" data-id="${it.id}" style="margin-bottom:8px">Delete</button>`:''),v=>{
+  if(v.start&&v.end&&fixEnd(v))toast('Arrival adjusted to follow departure');
   if(type==='flight'){v.from=(v.from||'').toUpperCase().trim();v.to=(v.to||'').toUpperCase().trim();v.flightNo=(v.flightNo||'').toUpperCase().replace(/\s/g,'');if(!v.from||!v.to||!v.start){toast('Add airports and departure time');return false}}
   else if(!v.title.trim()){toast('Add a title');return false}
   if(it.id)Object.assign(getItem(tid,it.id),v,{type});else t.items.push({id:uid(),type,...v});save();render()})}
@@ -868,8 +869,8 @@ function viewMoney(t){const ex=exps(t),eur=ex.reduce((s,e)=>s+e.eur,0),bk=bookin
  <div class="card"><div class="mut sm">TOTAL</div><div class="big">${money(tot)}</div>
  ${t.budget?`<div class="bar" style="margin:8px 0"><i style="width:${Math.min(100,tot/t.budget*100)}%${tot>t.budget?';background:var(--bad)':''}"></i></div><div class="row"><span class="mut sm sp">Budget ${money(t.budget)}</span><span class="pill ${tot>t.budget?'red':'green'}">${tot>t.budget?money(tot-t.budget)+' over':money(t.budget-tot)+' left'}</span></div>`:''}
  <div class="kv"><b>Bookings</b><span>${money(bk.sum)}${bk.n?' · '+bk.n+' item'+(bk.n>1?'s':''):''}</span></div><div class="kv"><b>Expenses</b><span>${money(eur)}</span></div>${avg!=null&&eur?`<div class="kv"><b>Per day</b><span>${money(avg)}</span></div>`:''}${pl.length>1&&tot?`<div class="kv"><b>Per person</b><span>${money(tot/pl.length)}</span></div>`:''}</div>
- ${cats.length?`<div class="card"><h3>Categories</h3>${cats.map(([c,v])=>`<div class="row" style="margin:7px 0"><span style="width:92px">${c[1]} ${c[2]}</span><div class="bar sp"><i style="width:${v/mx*100}%"></i></div><span class="sm" style="width:78px;text-align:right">${money(v)}</span></div>`).join('')}</div>`:''}
- ${st&&st.tr.length?`<div class="card"><h3>Settle up</h3>${st.tr.map(([a,b,x])=>`<div class="kv"><b>${esc(person(a)?.name||'')} → ${esc(person(b)?.name||'')}</b><span>${money(x)}</span></div>`).join('')}</div>`:''}
+ ${catBudgetCard(t)}
+ ${whoCard(t)}
  ${Object.entries(by).map(([d,es])=>`<div class="card"><div class="mut sm" style="margin-bottom:4px">${fdate(d,{weekday:'short',day:'numeric',month:'short'})}</div>${es.map(e=>{const c=ECATS.find(x=>x[0]===e.cat)||ECATS[5];return`<div class="row" style="padding:7px 0" data-act="expEdit" data-id="${e.id}"><span style="font-size:22px">${c[1]}</span><div class="sp"><div>${esc(e.note||c[2])}</div>${pl.length>1?`<div class="mut sm">${esc(person(e.by)?.name||'')}</div>`:''}</div><div style="text-align:right"><div>${e.rc?'📎 ':''}${e.cur==='EUR'?money(e.eur):e.amt.toLocaleString(LOC())+' '+e.cur}</div>${e.cur!=='EUR'?`<div class="mut sm">${money(e.eur)}</div>`:''}</div></div>`}).join('')}</div>`).join('')||'<div class="empty">No expenses yet</div>'}`}
 function statsSpend(){const yr={},cc={};S.trips.forEach(t=>{const v=exps(t).reduce((s,e)=>s+e.eur,0)+bookingsEUR(t).sum;if(!v)return;const y=(tripRange(t).start||'').slice(0,4)||'—';yr[y]=(yr[y]||0)+v;const k=t.cc?(CC_NAME[t.cc]||t.cc):'Other';cc[k]=(cc[k]||0)+v});if(!Object.keys(yr).length)return'';const my=Math.max(...Object.values(yr));
  return`<div class="card"><h3>Spending by year</h3>${Object.entries(yr).sort().map(([y,v])=>`<div class="row" style="margin:6px 0"><span style="width:44px">${y}</span><div class="bar sp"><i style="width:${v/my*100}%"></i></div><span class="sm" style="width:84px;text-align:right">${money(v)}</span></div>`).join('')}</div><div class="card"><h3>Spending by country</h3>${Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="kv"><b>${esc(k)}</b><span>${money(v)}</span></div>`).join('')}</div>`}
@@ -951,7 +952,7 @@ const ACT3={
  async wFile(d){const x=await walGet(d.id);if(!x)return toast('File not found');const u=URL.createObjectURL(x.blob);window.open(u,'_blank')||(location.href=u)},
  wDel(d){closeSheet();confirmSheet('Delete this document?',async()=>{try{await walDel(d.id)}catch(e){}S.wallet=S.wallet.filter(x=>x.id!==d.id);save();render()})},
  expAdd(){expSheet(trip(UI.tripId))},expEdit(d){const t=trip(UI.tripId);expSheet(t,exps(t).find(e=>e.id===d.id))},expDel(d){const t=trip(UI.tripId);closeSheet();try{docDel('r'+d.id)}catch(e){}t.expenses=exps(t).filter(e=>e.id!==d.id);save();render()},
- budgetSet(){const t=trip(UI.tripId);openSheet('Budget',F('b','Budget in €',t.budget||'',{type:'number'}),v=>{t.budget=parseFloat(v.b)||0;save();render()})},
+ budgetSet(){const t=trip(UI.tripId);t.cbud=t.cbud||{};openSheet('Budget',F('b','Total in €',t.budget||'',{type:'number'})+ECATS.map(c=>F('cb_'+c[0],c[1]+' '+c[2],t.cbud[c[0]]||'',{type:'number'})).join(''),v=>{t.cbud={};let sum=0;ECATS.forEach(c=>{const a=parseFloat(v['cb_'+c[0]]);if(a>0){t.cbud[c[0]]=a;sum+=a}});t.budget=parseFloat(v.b)||sum||0;save();render()})},
  expCsv(){const t=trip(UI.tripId);const q=s=>'"'+String(s??'').replace(/"/g,'""')+'"';dl((t.name||'trip').replace(/\W+/g,'_')+'_expenses.csv',['date,category,note,amount,currency,eur,paid_by',...exps(t).slice().sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date,e.cat,q(e.note),e.amt,e.cur,e.eur,q(person(e.by)?.name||'')].join(','))].join('\n'),'text/csv');toast('CSV ready')},
  packTpl(d){const t=trip(UI.tripId);const p=t.pack=t.pack||[];PACK[d.k].forEach(x=>{if(!p.some(y=>y.t===x))p.push({id:uid(),t:x,cat:d.k,done:0})});save();render()},
  packAdd(){const t=trip(UI.tripId);openSheet('New item',F('t','Item','')+F('cat','List',[...new Set((t.pack||[]).map(x=>x.cat)),'Other'][0],{list:'pcl'})+`<datalist id="pcl">${Object.keys(PACK).map(k=>`<option value="${k}">`).join('')}<option value="Other"></datalist>`,v=>{if(!v.t.trim())return false;(t.pack=t.pack||[]).push({id:uid(),t:v.t.trim(),cat:v.cat.trim()||'Other',done:0});save();render()})},
@@ -1464,14 +1465,6 @@ const AIRL={AF:'Air France',KL:'KLM',IB:'Iberia',I2:'Iberia Express',VY:'Vueling
 const RENT=['Hertz','Avis','Europcar','Sixt','Enterprise','Budget','Alamo','National','Thrifty','Dollar','Cabrera Medina','Goldcar','Record Go','Autoreisen','Ada','Rent a Car','Rentalcars','Drivalia','Centauro','Ucar','Locauto','Maggiore','Firefly','Cicar','Payless','Ouigo','Getaround','Free2move','Leasys','Virtuo','Zity'];
 const MR='(?:jan|ene|feb|f[eé]v|mar|abr|apr|avr|may|mai|jun|juin|jul|juil|aug|ago|ao[uû]|sep|sept|set|oct|nov|dec|d[eé]c|dic)[a-zéû]*';
 const mo7=w=>{w=w.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\./g,'');if(w.startsWith('juil'))return 7;if(w.startsWith('juin'))return 6;const k=w.slice(0,3);return({jan:1,ene:1,feb:2,fev:2,mar:3,abr:4,apr:4,avr:4,may:5,mai:5,jun:6,jul:7,aug:8,ago:8,aou:8,sep:9,set:9,oct:10,nov:11,dec:12,dic:12})[k]||0};
-function dates7(s,ref){const o=[];let m;const iso=(Y,M,Dd)=>`${Y}-${pad(M)}-${pad(Dd)}`;const ry=ref?+ref.slice(0,4):new Date().getFullYear();
- const fix=(Y,M,Dd,has)=>{if(has)return iso(Y,M,Dd);let y=ry;const c=iso(y,M,Dd);if(ref&&c<addDays(ref,-120))y++;return iso(y,M,Dd)};
- const push=(i,len,d)=>{if(!o.some(x=>i<x.e&&i+len>x.i))o.push({i,e:i+len,d})};
- let r=/\b(20\d\d)-(\d\d)-(\d\d)\b/g;while(m=r.exec(s))push(m.index,m[0].length,m[0]);
- r=/\b(\d{1,2})[\/.](\d{1,2})[\/.](20\d\d)\b/g;while(m=r.exec(s))push(m.index,m[0].length,iso(m[3],+m[2],+m[1]));
- r=new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th|er|º)?\\s+(?:de\\s+)?('+MR+')\\.?,?(?:\\s+de)?(?:\\s+(20\\d\\d))?(?!\\d)','gi');while(m=r.exec(s)){const mo=mo7(m[2]);if(mo&&+m[1]>=1&&+m[1]<=31)push(m.index,m[0].length,fix(m[3],mo,+m[1],!!m[3]))}
- r=new RegExp('\\b('+MR+')\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?!\\d)(?:,?\\s+(20\\d\\d))?','gi');while(m=r.exec(s)){const mo=mo7(m[1]);if(mo&&+m[2]>=1&&+m[2]<=31)push(m.index,m[0].length,fix(m[3],mo,+m[2],!!m[3]))}
- return o.sort((a,b)=>a.i-b.i)}
 const after7=(arr,i,max)=>arr.find(x=>x.i>=i&&x.i<=i+max);
 function mw7(s){return s.replace(/=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g,(m,cs,e,t)=>e.toUpperCase()==='B'?dec7(t,'base64',cs):dec7(t.replace(/_/g,' '),'quoted-printable',cs))}
 function dec7(body,enc,cs){let b;enc=(enc||'').toLowerCase();
@@ -1484,42 +1477,83 @@ function mime7(raw){const i=raw.search(/\r?\n\r?\n/);if(i<0)return{head:'',plain
  if(bm){let pl='',ht='';body.split('--'+bm[1]).slice(1).forEach(p=>{if(/^--/.test(p.trim())||!p.trim())return;const r=mime7(p.replace(/^\r?\n/,''));pl+=r.plain+'\n';ht+=r.html+'\n'});return{head,plain:pl,html:ht}}
  const cs=(/charset="?([\w-]+)/i.exec(ct)||[])[1],txt=dec7(body,enc,cs);return/text\/html/i.test(ct)?{head,plain:'',html:txt}:/text\/plain|^$/i.test(ct)||!ct?{head,plain:txt,html:''}:{head,plain:'',html:''}}
 function html2txt(s){s=s.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<!--[\s\S]*?-->/gi,' ').replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d|table|section)>/gi,'\n').replace(/<\/t[dh]>/gi,'  ').replace(/<[^>]+>/g,' ');const ta=document.createElement('textarea');ta.innerHTML=s.replace(/</g,'&lt;');return ta.value}
+const lbl7=(T,re,req)=>{const m=new RegExp('(?:'+re+')\\s*[:\\-–]'+(req?'':'?')+'\\s*([^\\n]{2,120})','i').exec(T);return m?m[1].trim():''};
+const WD7={mon:1,lun:1,tue:2,mar:2,wed:3,mer:3,mie:3,thu:4,jeu:4,jue:4,fri:5,ven:5,vie:5,sat:6,sam:6,sab:6,sun:0,dim:0,dom:0};
+function dates7(s,ref){const o=[];let m;const iso=(Y,M,Dd)=>`${Y}-${pad(M)}-${pad(Dd)}`;const base=ref||dIso(new Date()),ry=+base.slice(0,4);
+ const fix=(i,Y,M,Dd,has)=>{if(has)return iso(Y,M,Dd);const w=/\b(mon|tue|wed|thu|fri|sat|sun|lun|mar|mer|jeu|ven|sam|dim|mi[eé]|jue|vie|s[aá]b|dom)[a-zé]*\.?,?\s*$/i.exec(s.slice(Math.max(0,i-14),i));
+  if(w){const wd=WD7[w[1].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').slice(0,3)];for(const y of[ry,ry+1,ry-1,ry+2])if(new Date(y,M-1,Dd).getDay()===wd)return iso(y,M,Dd)}
+  let y=ry;if(iso(y,M,Dd)<addDays(base,-120))y++;return iso(y,M,Dd)};
+ const push=(i,len,d)=>{if(!o.some(x=>i<x.e&&i+len>x.i))o.push({i,e:i+len,d})};
+ let r=/\b(20\d\d)-(\d\d)-(\d\d)\b/g;while(m=r.exec(s))push(m.index,m[0].length,m[0]);
+ r=/\b(\d{1,2})[\/.](\d{1,2})[\/.](20\d\d)\b/g;while(m=r.exec(s))push(m.index,m[0].length,iso(m[3],+m[2],+m[1]));
+ r=new RegExp('\\b(\\d{1,2})(?:st|nd|rd|th|er|º)?\\s+(?:de\\s+)?('+MR+')\\.?,?(?:\\s+de)?(?:\\s+(20\\d\\d))?(?!\\d)','gi');while(m=r.exec(s)){const mo=mo7(m[2]);if(mo&&+m[1]>=1&&+m[1]<=31)push(m.index,m[0].length,fix(m.index,m[3],mo,+m[1],!!m[3]))}
+ r=new RegExp('\\b('+MR+')\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?!\\d)(?:,?\\s+(20\\d\\d))?','gi');while(m=r.exec(s)){const mo=mo7(m[1]);if(mo&&+m[2]>=1&&+m[2]<=31)push(m.index,m[0].length,fix(m.index,m[3],mo,+m[2],!!m[3]))}
+ return o.sort((a,b)=>a.i-b.i)}
+function tm7(s){const o=[],r=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)(?!\d)(?!\s?(?:m\b|min))\s?(am|pm)?/gi;let m;while(m=r.exec(s)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}o.push({i:m.index,e:m.index+m[0].length,t:pad(h)+':'+m[2]})}return o}
+const hm7=x=>{const m=/(\d{1,2})\s?[:h]\s?(\d{2})/.exec(x||'');return m?pad(+m[1])+':'+m[2]:''};
+function span7(seg,ref){const ds=dates7(seg,ref),ts=tm7(seg),used=new Set(),pairs=[];
+ ds.forEach(d=>{let b=null;ts.forEach((t,k)=>{if(used.has(k))return;const gap=t.i>=d.e?t.i-d.e:(d.i>=t.e?d.i-t.e:99);if(gap<=24&&(!b||gap<b.gap))b={k,gap,t}});if(b){used.add(b.k);pairs.push({i:d.i,d:d.d,t:b.t.t})}else pairs.push({i:d.i,d:d.d,t:''})});
+ const P=pairs.filter(x=>x.t);let dep,arr;
+ if(P.length>=2){dep=P[0];arr=P[1]}
+ else if(P.length===1&&ts.length>=2){dep=P[0];const t2=ts.find(t=>t.t!==P[0].t&&t.i>P[0].i);arr={d:P[0].d,t:t2?t2.t:''};if(arr.t&&arr.t<dep.t)arr.d=addDays(arr.d,1)}
+ else if(P.length===1)dep=P[0];
+ else if(ds.length&&ts.length>=2){dep={d:ds[0].d,t:ts[0].t};arr={d:ds[ds.length>1?1:0].d,t:ts[1].t};if(ds.length<2&&arr.t<dep.t)arr.d=addDays(arr.d,1)}
+ else if(ds.length)dep={d:ds[0].d,t:ts[0]?ts[0].t:''};
+ return{dep,arr}}
+function fixEnd(o){if(!o||!o.start||!o.end||o.end>=o.start)return false;const sd=o.start.slice(0,10);let e=o.end.length<=10?sd+o.start.slice(10):sd+o.end.slice(10);if(e<o.start)e=addDays(sd,1)+e.slice(10);o.end=e;return true}
+function conf7(T,from){const re=/(?:confirmation(?: number| no\.?| code)?|booking(?: number| reference| ref\.?| id)?|reservation(?: number| code)?|r[ée]f[ée]rence(?: client)?|airline reference|PNR|record locator|locator|r[ée]servation|n[°º]|dossier|localizador|c[oó]digo de reserva|num[eé]ro de r[ée]servation)(?=\s*[:#\-–]?\s*([A-Za-z0-9][A-Za-z0-9\-]{4,15})\b)/gi;let m;const S0=T.slice(from||0);while(m=re.exec(S0)){const c=m[1];if(!/^[A-Z0-9\-]+$/.test(c))continue;if(/\d/.test(c)||/^[A-Z]{6}$/.test(c))return c}return''}
+function price7(T,near){const AM='((?:€|EUR|USD|US\\$|\\$|£|GBP|MXN)\\s?\\d[\\d.,\\s]*\\d|\\d[\\d.,\\s]*\\d\\s?(?:€|EUR|USD|\\$|£|GBP|MXN))';
+ const tot=new RegExp('(?:total(?: price| amount| cost| paid)?|prix total|montant(?: total)?|precio total|importe(?: total)?|amount due|you paid)[^\\n:€$£]{0,40}[:\\-–]?\\s*'+AM,'ig');let m,first=null;while(m=tot.exec(T)){const v=m[1].replace(/\s+/g,' ').trim();if(near==null||Math.abs(m.index-near)<2500){first=v;break}}
+ if(first)return first;const any=new RegExp('(?:price|prix|precio)\\s*[:\\-–]?\\s*'+AM,'i').exec(T);return any?any[1].replace(/\s+/g,' ').trim():''}
+const nl7=(T,re)=>{const m=new RegExp('(?:^|\\n)\\s*(?:'+re+')\\s*\\n\\s*([^\\n]{3,140})','i').exec(T);return m?m[1].trim():''};
+function lnAfter7(T,idx){const L=T.slice(idx,idx+400).split('\n');for(let i=1;i<L.length;i++){const l=L[i].trim();if(!l)continue;if(dates7(l).length||/^\d{1,2}[:h]\d{2}$/.test(l))continue;return l.slice(0,90)}return ''}
 function clean7(raw){raw=String(raw||'');let sub='',s=raw;
  if(/^(?:Received|Return-Path|From|To|Subject|Date|MIME-Version|Content-Type|Message-ID|Delivered-To|X-[\w-]+):/im.test(raw.slice(0,3000))&&/\r?\n\r?\n/.test(raw)){const r=mime7(raw);sub=mw7((r.head.match(/^Subject:\s*(.*)$/im)||[])[1]||'');const a=r.plain.trim(),b=html2txt(r.html);s=(b.trim().length>a.length*1.2?b:a)||b}
  else if(/<(html|body|table|div|p)\b/i.test(raw))s=html2txt(raw);
- s=s.replace(/\r/g,'').replace(/[ \t\u00a0]+/g,' ').replace(/ *\n */g,'\n').replace(/\n{2,}/g,'\n').trim();return(sub?sub+'\n':'')+s}
-const lbl7=(T,re,req)=>{const m=new RegExp('(?:'+re+')\\s*[:\\-–]'+(req?'':'?')+'\\s*([^\\n]{2,120})','i').exec(T);return m?m[1].trim():''};
-function price7(T,near){const re=/(?:total(?: price| amount| cost)?|prix total|montant(?: total)?|precio total|importe(?: total)?|amount due|you paid|price|prix)\s*[:\-–]?\s*((?:€|EUR|USD|US\$|\$|£|GBP|MXN)\s?\d[\d.,\s]*\d|\d[\d.,\s]*\d\s?(?:€|EUR|USD|\$|£|GBP|MXN))/ig;let m,last=null;while(m=re.exec(T)){if(near==null||Math.abs(m.index-near)<900){last=m[1].replace(/\s+/g,' ').trim();if(/total/i.test(m[0]))break}}return last||''}
-function conf7(T,from){const re=/(?:confirmation(?: number| no\.?| code)?|booking(?: number| reference| ref\.?| id)?|reservation(?: number| code)?|reference|PNR|record locator|locator|r[ée]servation|n[°º]|dossier|localizador|c[oó]digo de reserva|num[eé]ro de r[ée]servation)(?=\s*[:#\-–]?\s*([A-Za-z0-9][A-Za-z0-9\-]{4,15})\b)/gi;let m;const S0=T.slice(from||0);while(m=re.exec(S0)){const c=m[1];if(!/^[A-Z0-9\-]+$/.test(c))continue;if(/\d/.test(c)||/^[A-Z]{6}$/.test(c))return c}return''}
-function flights7(T,ref,out){if(!/flight|\bvol\b|vuelo|boarding|e-?ticket|billet|passenger|passager|pasajero|airline|compagnie a[ée]rienne|aerol[ií]nea|itinerary|itin[ée]raire/i.test(T))return;
- const dates=dates7(T,ref),times=[];let m;const rt=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)\s?(am|pm|AM|PM)?/g;while(m=rt.exec(T)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}times.push({i:m.index,t:pad(h)+':'+m[2]})}
- const fr=/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})\b/g,fm=[];while(m=fr.exec(T)){if(!/[A-Z]/.test(m[1]))continue;if(!AIRL[m[1]]&&!/(flight|vol|vuelo|n°)\s*$/i.test(T.slice(Math.max(0,m.index-12),m.index)))continue;fm.push({i:m.index,no:m[1]+m[2],al:m[1]})}
+ s=s.replace(/\r/g,'').replace(/\[[^\]\n]*\.(?:png|gif|jpe?g)\]/gi,' ').replace(/\[([^\]\n]*)\]\([^)\n]*\)/g,'$1').replace(/<?https?:\/\/[^\s>)]+>?/g,' ').replace(/^\s*\|\s?/gm,'').replace(/\s?\|\s*$/gm,'').replace(/ \| /g,'  ').replace(/[ \t\u00a0]+/g,' ').replace(/ *\n */g,'\n').replace(/\n{2,}/g,'\n').trim();return(sub?sub+'\n':'')+s}
+const CAB7=x=>/premium/i.test(x)?'Premium economy':/business|affaires/i.test(x)?'Business':/first|premi[èe]re/i.test(x)?'First':/econom|économ|turista/i.test(x)?'Economy':'';
+function flightFrom7(seg,from,to,ref,Tg){const{dep,arr}=span7(seg,ref);const fn=[];const fr=/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})\b/g;let q;while(q=fr.exec(seg)){if(!/[A-Z]/.test(q[1])||!AIRL[q[1]])continue;const no=q[1]+q[2];if(!fn.includes(no))fn.push(no)}
+ if(!fn.length){const l=/(?:flight|vol|vuelo)\s*[:#]?\s*\n?\s*([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})/i.exec(seg);if(l)fn.push((l[1]+l[2]).toUpperCase())}
+ const term=(/terminal\s*([A-Z0-9]{1,3})\b/i.exec(seg)||[])[1],seat=(/(?:seat|si[eè]ge|asiento)\s*[:#]?\s*(\d{1,2}[A-K])\b/i.exec(seg)||[])[1],cab=CAB7(seg.slice(0,300)),stops=(/(\d+)\s*(?:escale|stop)/i.exec(seg)||[])[1],dir=/\b(direct|non-?stop|sans escale)\b/i.test(seg);
+ const notes=[fn.length>1?'Connection '+fn.slice(1).join(', '):'',stops?stops+(stops==='1'?' stop':' stops'):''].filter(Boolean).join(' · ');
+ return{type:'flight',airline:fn[0]?(AIRL[fn[0].slice(0,2)]||''):'',flightNo:fn[0]||'',from,to,start:dep?dep.d+'T'+(dep.t||'00:00'):'',end:arr&&arr.t?arr.d+'T'+arr.t:'',conf:conf7(seg)||conf7(Tg),...(term?{terminal:term.toUpperCase()}:{}),...(seat?{seat}:{}),...(cab?{cabin:cab}:{}),...(notes?{notes}:{})}}
+function flights7(T,ref,out){if(!/flight|\bvol\b|vuelo|boarding|e-?ticket|billet|passenger|passager|pasajero|airline|a[ée]rien|aerol[ií]nea|itinerary|itin[ée]raire/i.test(T))return;
+ const seen=new Set(),add=o=>{const k=o.flightNo+o.from+o.to+(o.start||'').slice(0,10);if(seen.has(k))return;seen.add(k);fixEnd(o);out.push(o)};
+ const RA=/([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,38}?)\s*\(([A-Z]{3})\)\s*(?:to|vers|→|->|–|—|-|a|à|hacia|para|au)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'’.\- ]{1,38}?)\s*\(([A-Z]{3})\)/g,an=[];let m;while(m=RA.exec(T))an.push({i:m.index,e:m.index+m[0].length,from:m[2],to:m[4]});
+ an.forEach((a,k)=>{const seg=T.slice(a.e,k+1<an.length?an[k+1].i:a.e+700);add(flightFrom7(seg,a.from,a.to,ref,T))});
+ if(!out.length){const RB=/\b([A-Z]{3})\n[^\n]+\n\d{1,2}[:h]\d{2}\n(?:\d{1,2}[:h]\d{2}\n)?([A-Z]{3})\n[^\n]+\n(\d{1,2}[:h]\d{2})(?: \((\d{1,2} [A-Za-z]{3,})\))?\n(?:\d{1,2}[:h]\d{2}(?: \([^)]*\))?\n)?Date\n([^\n]+)\nFlight\n([A-Z0-9]{2}\s?\d{2,4})/g;
+  const T2=T;let b;
+  while(b=RB.exec(T2)){const dd=dates7(b[5],ref)[0];if(!dd)continue;const fm=b[0].match(/^[A-Z]{3}\n[^\n]+\n(\d{1,2}[:h]\d{2})/),dep=hm7(fm?fm[1]:''),ar=hm7(b[3]);let ad=dd.d;if(b[4]){const x=dates7(b[4]+' '+dd.d.slice(0,4),ref)[0];if(x)ad=x.d}else if(ar<dep)ad=addDays(dd.d,1);
+   const fl=b[6].replace(/\s/g,'');add({type:'flight',airline:AIRL[fl.slice(0,2)]||'',flightNo:fl,from:b[1],to:b[2],start:dd.d+'T'+dep,end:ad+'T'+ar,conf:conf7(T2.slice(b.index+b[0].length,b.index+b[0].length+120))||conf7(T)})}}
+ if(!out.length)flightsC7(T,ref,out)}
+function flightsC7(T,ref,out){const dates=dates7(T,ref),times=tm7(T);let m;const fr=/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})\b/g,fm=[];while(m=fr.exec(T)){if(!/[A-Z]/.test(m[1]))continue;if(!AIRL[m[1]]&&!/(flight|vol|vuelo|n°)\s*$/i.test(T.slice(Math.max(0,m.index-12),m.index)))continue;fm.push({i:m.index,no:m[1]+m[2],al:m[1]})}
  const seen=new Set();fm.forEach((f,k)=>{const end=k+1<fm.length?fm[k+1].i:f.i+450,ctx=T.slice(f.i,Math.min(end,f.i+450)),pre=T.slice(Math.max(0,f.i-120),f.i);
   const codes=[...(pre+' '+ctx).matchAll(/\b[A-Z]{3}\b/g)].map(x=>x[0]).filter((c,ix,a)=>AP[c]&&a.indexOf(c)===ix);let cc=[...ctx.matchAll(/\b[A-Z]{3}\b/g)].map(x=>x[0]).filter((c,ix,a)=>AP[c]&&a.indexOf(c)===ix);if(cc.length<2)cc=codes;if(cc.length<2)return;
   const dn=dates.filter(d=>d.i<=f.i+450&&d.i>=f.i-250).sort((a,b)=>Math.abs(a.i-f.i)-Math.abs(b.i-f.i))[0]||dates.filter(d=>d.i<f.i).pop()||dates[0];
-  const ts=times.filter(x=>x.i>f.i&&x.i<f.i+450),date=dn?.d||'',dep=ts[0]?.t||'',arr=ts[1]?.t||'';let ad=date;if(dep&&arr&&arr<dep&&date)ad=addDays(date,1);
+  const ts=times.filter(x=>x.i>f.i&&x.i<f.i+450),date=dn?dn.d:'',dep=ts[0]?ts[0].t:'',arr=ts[1]?ts[1].t:'';let ad=date;if(dep&&arr&&arr<dep&&date)ad=addDays(date,1);
   const key=f.no+cc[0]+cc[1]+date;if(seen.has(key))return;seen.add(key);
-  const term=(/terminal\s*([A-Z0-9]{1,3})\b/i.exec(ctx)||[])[1],seat=(/(?:seat|si[eè]ge|asiento)\s*[:#]?\s*(\d{1,2}[A-K])\b/i.exec(ctx)||[])[1],cab=(/\b(economy|premium economy|business|first|[ée]conomique|turista|affaires)\b/i.exec(ctx)||[])[1];
-  out.push({type:'flight',airline:AIRL[f.al]||'',flightNo:f.no,from:cc[0],to:cc[1],start:date?date+'T'+(dep||'00:00'):'',end:date&&arr?ad+'T'+arr:'',conf:conf7(T,Math.max(0,f.i-1500))||conf7(T),...(term?{terminal:term.toUpperCase()}:{}),...(seat?{seat}:{}),...(cab?{cabin:cab[0].toUpperCase()+cab.slice(1)}:{})})})}
-function car7(T,ref,out){const co=RENT.find(r=>new RegExp('\\b'+r.replace(/ /g,'\\s')+'\\b','i').test(T));
+  const term=(/terminal\s*([A-Z0-9]{1,3})\b/i.exec(ctx)||[])[1],seat=(/(?:seat|si[eè]ge|asiento)\s*[:#]?\s*(\d{1,2}[A-K])\b/i.exec(ctx)||[])[1],cab=CAB7(ctx.slice(0,300));
+  const o={type:'flight',airline:AIRL[f.al]||'',flightNo:f.no,from:cc[0],to:cc[1],start:date?date+'T'+(dep||'00:00'):'',end:date&&arr?ad+'T'+arr:'',conf:conf7(T,Math.max(0,f.i-1500))||conf7(T),...(term?{terminal:term.toUpperCase()}:{}),...(seat?{seat}:{}),...(cab?{cabin:cab}:{})};fixEnd(o);out.push(o)})}
+function car7(T,ref,out){const co0=nl7(T,'rental company|loueur|compagnie de location|compa[ñn][ií]a de alquiler')||(RENT.find(r=>new RegExp('\\b'+r.replace(/ /g,'\\s')+'\\b','i').test(T))||''),co=RENT.find(r=>r.toLowerCase()===co0.toLowerCase())||co0;
  if(!(/(car rental|rental car|car hire|location de voiture|location de v[ée]hicule|alquiler de (coche|veh[ií]culo)|rent a car|pick[- ]?up|prise en charge|retrait du v|recogida)/i.test(T)&&/(drop[- ]?off|return|restitution|retour du v|devoluci[oó]n|entrega)/i.test(T))&&!(co&&/(vehicle|car|voiture|v[ée]hicule|coche)/i.test(T)&&/(pick|prise|recogida|retrait)/i.test(T)))return;
- const dates=dates7(T,ref),times=[];let m;const rt=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)\s?(am|pm|AM|PM)?/g;while(m=rt.exec(T)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}times.push({i:m.index,t:pad(h)+':'+m[2]})}
- const pk=/pick[- ]?up|prise en charge|retrait|recogida/i.exec(T),dr=/drop[- ]?off|return|restitution|retour|devoluci[oó]n|entrega/i.exec(T.slice(pk?pk.index+8:0));const dri=dr?(pk?pk.index+8:0)+dr.index:-1;
- const d1=pk?after7(dates,pk.index,260):dates[0],d2=dri>=0?after7(dates,dri,260):dates.find(d=>d1&&d.d>d1.d);const t1=pk?after7(times,pk.index,260):times[0],t2=dri>=0?after7(times,dri,260):null;
- const pl=lbl7(T,'pick[- ]?up (?:location|branch|station)|lieu de (?:retrait|prise en charge)|recogida en|lugar de recogida|pick[- ]?up'),dl=lbl7(T,'drop[- ]?off (?:location|branch|station)|return (?:location|branch|station)|lieu de (?:restitution|retour)|devoluci[oó]n en|lugar de devoluci[oó]n|drop[- ]?off|return to'),
-  veh=(/([A-Z][\w\- ]{2,28}) (?:or similar|ou similaire|o similar)/.exec(T)||[])[1]||lbl7(T,'(?:vehicle|car|v[ée]hicule|veh[ií]culo|category|cat[ée]gorie|group)');
- const clean=x=>x.replace(/\s{2,}.*$/,'').replace(/\b(date|time|heure|hora|fecha).*$/i,'').trim();
- if(!d1)return;out.push({type:'car',title:(co||'Car rental')+(veh?' · '+clean(veh).slice(0,30):''),location:clean(pl).slice(0,80),start:d1.d+'T'+(t1?.t||'10:00'),end:d2?d2.d+'T'+(t2?.t||'10:00'):'',conf:conf7(T,pk?Math.max(0,pk.index-1200):0)||conf7(T),cost:price7(T,pk?pk.index:null),notes:dl&&clean(dl)!==clean(pl)?'Return: '+clean(dl).slice(0,80):''})}
-function hotel7(T,ref,out){const ci=/check[- ]?in|arriv[ée]e|arrival|entrada|llegada|fecha de entrada/i.exec(T),co=/check[- ]?out|d[ée]part|departure|salida|fecha de salida/i.exec(T);if(!ci||!co)return;
+ const dates=dates7(T,ref),times=tm7(T);const pk=/pick[- ]?up|prise en charge|retrait|recogida/i.exec(T),dr=/drop[- ]?off|return|restitution|retour|devoluci[oó]n|entrega/i.exec(T.slice(pk?pk.index+8:0));const dri=dr?(pk?pk.index+8:0)+dr.index:-1;
+ const d1=pk?after7(dates,pk.index,260):dates[0],d2=dri>=0?after7(dates,dri,260):dates.find(d=>d1&&d.d>d1.d);const t1=pk?after7(times,pk.index,260):times[0],t2=dri>=0?after7(times,dri,260):null;if(!d1)return;
+ const clean=x=>(x||'').replace(/\s{2,}.*$/,'').replace(/\b(date|time|heure|hora|fecha).*$/i,'').trim();
+ const nd=x=>x&&!dates7(x).length&&!/^(vehicle|v[ée]hicule|veh[ií]culo)/i.test(x)?x:'';const pl=nd(clean(lbl7(T,'pick[- ]?up (?:location|branch|station)|lieu de (?:retrait|prise en charge)|recogida en|lugar de recogida|pick[- ]?up|recogida|prise en charge|retrait',1)))||(pk?lnAfter7(T,pk.index):''),dl=nd(clean(lbl7(T,'drop[- ]?off (?:location|branch|station)|return (?:location|branch|station)|lieu de (?:restitution|retour)|devoluci[oó]n en|lugar de devoluci[oó]n|drop[- ]?off|devoluci[oó]n|restitution',1)))||(dri>=0?lnAfter7(T,dri):'');
+ const veh=(/([A-Z][\w\- ]{2,28}) (?:or similar|ou similaire|o similar)/.exec(T)||[])[1]||lbl7(T,'(?:vehicle|car|v[ée]hicule|veh[ií]culo|category|cat[ée]gorie|group)',1);
+ out.push({type:'car',title:(co||'Car rental')+(veh?' · '+clean(veh).slice(0,30):''),location:pl.slice(0,80),start:d1.d+'T'+(t1?t1.t:'10:00'),end:d2?d2.d+'T'+(t2?t2.t:'10:00'):'',conf:conf7(T),cost:price7(T,null),notes:dl&&dl!==pl?'Return: '+dl.slice(0,80):''});fixEnd(out[out.length-1])}
+function hotel7(T,ref,out){const ci=/check[- ]?in|arriv[ée]e|arrival|entrada|llegada/i.exec(T),co=/check[- ]?out|d[ée]part\b|departure|salida/i.exec(T);if(!ci||!co)return;
  if(/pick[- ]?up|drop[- ]?off|car rental|location de voiture/i.test(T)&&!/h[oô]tel|hotel|apartment|airbnb|booking\.com|resort|villa|b&b|hostel|lodge|riad|alojamiento|hébergement|accommodation|stay/i.test(T))return;
- const dates=dates7(T,ref),times=[];let m;const rt=/\b([01]?\d|2[0-3])\s?[:h]\s?([0-5]\d)\s?(am|pm|AM|PM)?/g;while(m=rt.exec(T)){let h=+m[1];if(m[3]){const p=m[3].toLowerCase();if(p==='pm'&&h<12)h+=12;if(p==='am'&&h===12)h=0}times.push({i:m.index,t:pad(h)+':'+m[2]})}
- const d1=after7(dates,ci.index,200),d2=after7(dates,co.index,200);if(!d1)return;const a1=after7(times,ci.index,Math.max(40,(d1?d1.i-ci.index:0)+60)),a2=after7(times,co.index,Math.max(40,(d2?d2.i-co.index:0)+60));
- let name=lbl7(T,'(?:h[oô]tel|hotel|property|accommodation|h[ée]bergement|[ée]tablissement|alojamiento|propiedad|nom de l.[ée]tablissement)',1);
- if(!name){const ln=T.split('\n').map(x=>x.trim()).find(l=>/h[oô]tel|hotel|resort|\binn\b|suites?\b|hostel|apartment|apartamento|lodge|riad|villa|b&b/i.test(l)&&l.length<90&&!/check|booking\.com|confirm/i.test(l));name=ln||''}
+ const dates=dates7(T,ref),d1=after7(dates,ci.index,200),d2=after7(dates,co.index,200);if(!d1)return;
+ const rng=dd=>{if(!dd)return[];const m=/(\d{1,2}\s?[:h]\s?\d{2})\s*(?:[-–—]\s*(\d{1,2}\s?[:h]\s?\d{2}))?/.exec(T.slice(dd.e,dd.e+45));return m?[hm7(m[1]),m[2]?hm7(m[2]):'']:[]};
+ const r1=rng(d1),r2=rng(d2),tin=r1[0]||'15:00',tout=r2[1]||r2[0]||'11:00';
+ let name=((/(?:^|\n)\s*(?:[✓✔]\s*)?([^\n]{3,70}?) (?:is expecting you|vous attend|te espera|le espera)/i.exec(T)||[])[1])||lbl7(T,'(?:h[oô]tel|property|accommodation|h[ée]bergement|[ée]tablissement|alojamiento|propiedad|nom de l.[ée]tablissement)',1);
+ if(!name){const ln=T.split('\n').map(x=>x.trim()).find(l=>/h[oô]tel|hotel|resort|\binn\b|suites?\b|hostel|apartment|apartamento|lodge|riad|villa|b&b/i.test(l)&&l.length<70&&!/check|booking\.com|confirm|expecting|policy|reservation/i.test(l));name=ln||''}
  if(!name){const sm=/(?:at|à|en|chez)\s+([A-Z][^\n,.|]{3,60})/.exec(T.split('\n')[0]);name=sm?sm[1]:''}
  name=name.replace(/^h[oô]tel\s*:\s*/i,'').replace(/^[^A-Za-zÀ-ÿ0-9]+/,'').replace(/\s{2,}.*$/,'').slice(0,70);
- const addr=lbl7(T,'address|adresse|direcci[oó]n').replace(/\s{2,}.*$/,'').slice(0,120);
- out.push({type:'hotel',title:name||'Stay',address:addr,start:d1.d+'T'+(a1?.t||'15:00'),end:d2?d2.d+'T'+(a2?.t||'11:00'):'',conf:conf7(T),cost:price7(T,null)})}
+ const addr=(lbl7(T,'address|adresse|direcci[oó]n',1)||nl7(T,'location|address|adresse|emplacement|direcci[oó]n|ubicaci[oó]n')).replace(/\s{2,}.*$/,'').slice(0,120);
+ const room=(/(?:your reservation|votre r[ée]servation|su reserva)\s*[:\-]?\s*([^\n]{3,60})/i.exec(T)||[])[1];
+ const o={type:'hotel',title:name||'Stay',address:addr,start:d1.d+'T'+tin,end:d2?d2.d+'T'+tout:'',conf:conf7(T),cost:price7(T,null),...(room&&/night|nuit|room|chambre|habitaci|noche/i.test(room)?{notes:room.trim()}:{})};fixEnd(o);out.push(o)}
 function ics7(raw,out){const L=raw.replace(/\r/g,'').replace(/\n[ \t]/g,'').split('\n');let ev=null;const dt=v=>{const m=/(\d{4})(\d\d)(\d\d)(?:T(\d\d)(\d\d))?/.exec(v||'');return m?m[1]+'-'+m[2]+'-'+m[3]+'T'+(m[4]?m[4]+':'+m[5]:'00:00'):''};const un=x=>(x||'').replace(/\\n/gi,'\n').replace(/\\([,;\\])/g,'$1');
  L.forEach(l=>{if(l==='BEGIN:VEVENT')ev={};else if(l==='END:VEVENT'&&ev){const sum=un(ev.SUMMARY),loc=un(ev.LOCATION),des=un(ev.DESCRIPTION),txt=sum+'\n'+loc+'\n'+des,start=dt(ev.DTSTART),end=dt(ev.DTEND),fn=/\b([A-Z][A-Z0-9]|[A-Z0-9][A-Z])\s?(\d{2,4})\b/.exec(txt),codes=[...txt.matchAll(/\b[A-Z]{3}\b/g)].map(x=>x[0]).filter((c,i,a)=>AP[c]&&a.indexOf(c)===i);
   const conf=conf7(txt);
@@ -1528,8 +1562,10 @@ function ics7(raw,out){const L=raw.replace(/\r/g,'').replace(/\n[ \t]/g,'').spli
   else if(/car rental|rental car|hertz|avis|europcar|sixt|enterprise|alquiler de coche|location de voiture/i.test(txt))out.push({type:'car',title:sum.slice(0,50),location:loc.slice(0,80),start,end,conf});
   else out.push({type:'activity',title:sum.slice(0,70),location:loc.slice(0,80),start,end,conf,notes:des.slice(0,200)});ev=null}
   else if(ev){const m=/^([A-Z\-]+)(?:;[^:]*)?:(.*)$/.exec(l);if(m&&!(m[1] in ev))ev[m[1]]=m[2]}})}
-function parseEmail(raw,ref){if(/BEGIN:VEVENT/.test(raw)&&/BEGIN:VCALENDAR/.test(raw)){const o=[];ics7(raw,o);if(o.length)return o}
+function parseEmail(raw,ref){if(/BEGIN:VEVENT/.test(raw)&&/BEGIN:VCALENDAR/.test(raw)){const o=[];ics7(raw,o);o.forEach(fixEnd);if(o.length)return o}
  const T=clean7(raw),out=[];flights7(T,ref,out);car7(T,ref,out);hotel7(T,ref,out);
+ out.forEach(fixEnd);
+ {const fl=out.filter(x=>x.type==='flight');if(fl.length&&out.length===fl.length&&!fl[0].cost){const pr=price7(T,null);if(pr)fl[0].cost=pr}}
  if(!out.length){const ds=dates7(T,ref);out.push({type:'note',title:(T.split('\n').find(l=>l.trim())||'Imported note').slice(0,60),notes:T.slice(0,600),start:ds[0]?ds[0].d+'T09:00':''})}return out}
 function dup7(t,x){return t.items.some(i=>i.type===x.type&&((x.type==='flight'&&i.flightNo===x.flightNo&&(i.start||'').slice(0,10)===(x.start||'').slice(0,10))||(x.type!=='flight'&&x.conf&&i.conf===x.conf)||(x.type!=='flight'&&!x.conf&&(i.title||'')===x.title&&(i.start||'').slice(0,10)===(x.start||'').slice(0,10))))}
 function importSheet(){const nt=!!UI._newTrip;openSheet('Add from email',`<textarea data-f="txt" rows="9" placeholder="Paste email text"></textarea><div class="row w" style="margin:10px 0"><button class="btn o s" data-act="mailPaste">📋 Paste</button><label class="btn o s" style="margin:0;cursor:pointer">📎 File<input type="file" id="mailFile" accept=".eml,.html,.htm,.txt,.mht,message/rfc822,text/*" multiple hidden></label></div>`,v=>{const txt=(v.txt||'').trim();if(!txt){toast('Nothing to read');return false}
@@ -1549,6 +1585,21 @@ Object.assign(FR,{'Add from email':'Ajouter depuis un e-mail','Paste email text'
 
 Object.assign(ACT3,{importNew(){UI._newTrip=true;importSheet()}});
 Object.assign(FR,{'📥 Trip from email':'📥 Voyage depuis un e-mail','Select something to add':'Sélectionnez quelque chose à ajouter','New trip':'Nouveau voyage'});
+
+document.addEventListener('change',e=>{const f=e.target.dataset&&e.target.dataset.f;if(!f)return;const m=/^(start|s(\d+))$/.exec(f);if(!m)return;const ef=m[2]!==undefined?'e'+m[2]:'end',en=document.querySelector('[data-f="'+ef+'"]');if(!en||!e.target.value)return;if(!en.value||en.value<e.target.value){en.value=e.target.value.slice(0,10)+(en.value?en.value.slice(10):e.target.value.slice(10))}});
+Object.assign(FR,{'Arrival adjusted to follow departure':'Arrivée ajustée après le départ','Connection':'Correspondance','Direct':'Direct','1 stop':'1 escale'});
+
+/* ---- budget by category + who pays (as in the Excel template) ---- */
+const BMAP={flight:'transport',rail:'transport',car:'transport',hotel:'stay',activity:'act',restaurant:'food',note:'other'};
+function spentBy7(t){const o={};exps(t).forEach(e=>o[e.cat]=(o[e.cat]||0)+e.eur);t.items.forEach(i=>{let e=null;if(i.fare&&i.fare.paid>0)e=toEUR(i.fare.paid,i.fare.cur||'EUR');else{const c=parseCost(i.cost);if(c)e=toEUR(c.n,c.cur)}if(e){const k=BMAP[i.type]||'other';o[k]=(o[k]||0)+e}});return o}
+function catBudgetCard(t){const sp=spentBy7(t),cb=t.cbud||{},has=Object.values(cb).some(v=>v>0),rows=ECATS.map(c=>[c,sp[c[0]]||0,cb[c[0]]||0]).filter(r=>r[1]>0||r[2]>0);if(!rows.length)return'';
+ const mx=Math.max(1,...rows.map(r=>Math.max(r[1],r[2])));let tb=0,ts=0;rows.forEach(r=>{tb+=r[2];ts+=r[1]});
+ if(!has)return`<div class="card"><h3>Categories</h3>${rows.map(([c,v])=>`<div class="row" style="margin:7px 0"><span style="width:92px">${c[1]} ${c[2]}</span><div class="bar sp"><i style="width:${v/mx*100}%"></i></div><span class="sm" style="width:78px;text-align:right">${money(v)}</span></div>`).join('')}</div>`;
+ return`<div class="card"><h3>Budget by category</h3>${rows.map(([c,v,b])=>`<div style="margin:10px 0"><div class="row"><span class="sp">${c[1]} ${c[2]}</span><span class="sm">${money(v)} / ${b?money(b):'—'}</span></div>${b?`<div class="bar" style="margin:5px 0"><i style="width:${Math.min(100,v/b*100)}%${v>b?';background:var(--bad)':''}"></i></div><div class="mut sm" style="text-align:right">${v>b?money(v-b)+' over':money(b-v)+' left'}</div>`:`<div class="bar" style="margin:5px 0"><i style="width:${v/mx*100}%"></i></div>`}</div>`).join('')}<div class="kv"><b>Total</b><span>${money(ts)} / ${money(tb)}</span></div></div>`}
+function paidShare7(t){const pl=tripPeople(t),o={};pl.forEach(p=>o[p.id]={paid:0,share:0});exps(t).forEach(e=>{if(!(e.by in o))return;const sp=(e.split&&e.split.length?e.split:pl.map(p=>p.id)).filter(i=>i in o);if(!sp.length)return;o[e.by].paid+=e.eur;sp.forEach(i=>o[i].share+=e.eur/sp.length)});return o}
+function whoCard(t){const pl=tripPeople(t);if(pl.length<2||!exps(t).length)return'';const o=paidShare7(t),st=settle(t);
+ return`<div class="card"><h3>Who pays</h3><table style="width:100%;border-collapse:collapse"><tr class="mut sm"><td></td><td style="text-align:right">Paid</td><td style="text-align:right">Share</td><td style="text-align:right">Balance</td></tr>${pl.map(p=>{const x=o[p.id],b=x.paid-x.share;return`<tr style="border-top:1px solid var(--line,#0001)"><td style="padding:8px 0">${esc(p.name)}</td><td style="text-align:right">${money(x.paid)}</td><td style="text-align:right">${money(x.share)}</td><td style="text-align:right;font-weight:500;color:${b<-.005?'var(--bad)':'inherit'}">${money(b)}</td></tr>`}).join('')}</table>${st&&st.tr.length?`<div style="margin-top:12px;padding:12px;border-radius:14px;background:var(--chip,#1f8a8a18);text-align:center;font-weight:500">${st.tr.map(([a,b,x])=>`${esc(person(a)?.name||'')} → ${esc(person(b)?.name||'')} · ${money(x)}`).join('<br>')}</div>`:'<div class="mut sm" style="margin-top:10px;text-align:center">All square</div>'}</div>`}
+Object.assign(FR,{'Budget by category':'Budget par catégorie','Who pays':'Qui paie','Paid':'Payé','Share':'Part','Balance':'Solde','All square':'Comptes équilibrés','Total in €':'Total en €','Budget':'Budget'});
 
 /* ===== RENDER ===== */
 UI.acc={};
