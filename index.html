@@ -177,6 +177,11 @@ iframe.map{width:100%;height:240px;border:1px solid var(--line);border-radius:18
 #gal .gb{display:flex;gap:8px;overflow-x:auto;padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);scrollbar-width:none}#gal .gb::-webkit-scrollbar{display:none}
 #gal .gb i{flex:0 0 56px;height:56px;border-radius:10px;background:#ffffff18 center/cover;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:24px}#gal .gb i.on{border-color:#ec4624}
 .dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.dth{aspect-ratio:1;border:1.5px solid var(--line);border-radius:14px;background:var(--card) center/cover;position:relative;overflow:hidden;padding:0;display:flex;align-items:center;justify-content:center}.dth span{font-size:38px}.dth small{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 5px;background:linear-gradient(transparent,#000a);color:#fff;font:500 12px var(--fh);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdl{margin-left:auto;padding:6px 10px;font:700 22px var(--fh);color:var(--mut);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.hsec{transition:transform .15s}.hsec.hdrag{opacity:.85;transform:scale(1.015);box-shadow:0 10px 30px #0003;border-radius:18px;position:relative;z-index:5}
+.hsec .acc>summary{display:flex;align-items:center}
+.fsec.fold>*:not(.ftl){display:none}.fsec.fold .fth{margin-bottom:0}.fsec.hdrag{opacity:.85;transform:scale(1.015);box-shadow:0 10px 30px #0003;position:relative;z-index:5}.fth{cursor:pointer}
+.fsec .fth .hdl{margin-left:auto}.fsec.fold .fth::after{content:'▾';margin-left:8px;color:var(--mut)}.fsec:not(.fold) .fth::after{content:'▴';margin-left:8px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -555,13 +560,11 @@ function viewTrips(){
  const card=t=>{const r=tripRange(t),n=t.items.length,fl=t.items.filter(i=>i.type==='flight').length;const dd=r.start?dayDiff(now.toISOString().slice(0,10),r.start):null;
   return`<div class="card" data-act="openTrip" data-id="${t.id}" style="cursor:pointer"><div class="row"><div class="sp"><div style="font-size:20px;font-weight:500">${esc(t.name)}</div><div class="mut">${esc(t.dest||'')} ${t.cc?'· '+esc(CC_NAME[t.cc]||t.cc):''}</div></div>${dd!==null&&dd>=0?`<span class="pill amber">in ${dd} d</span>`:dd!==null&&r.end&&D(r.end)>=now?`<span class="pill green">now</span>`:''}</div>
   <div class="mut sm" style="margin-top:6px">${r.start?fdate(r.start,{day:'numeric',month:'short',year:'numeric'}):'No dates'}${r.end?' → '+fdate(r.end,{day:'numeric',month:'short'}):''} · ${tripNights(t)} nights · ${fl} flights · ${n} items</div></div>`};
- return`<div style="margin-bottom:12px">${seg}</div>${backupBanner()}${countdownCard()}${todayCard()}${heroNext()}
- ${al.length?`<div class="card"><h3>Alerts</h3>${al.map(alertRow).join('')}${computeAlerts().length>3?`<div class="mut sm" style="padding-top:8px" data-act="alerts">+${computeAlerts().length-3} more</div>`:''}</div>`:''}
- <div class="row" style="margin:6px 0 10px"><h3 style="margin:0;font-size:18px;text-transform:uppercase;letter-spacing:1px" class="sp">Upcoming</h3><button class="btn s" data-act="newTrip">+ Trip</button></div>
- ${up.map(card).join('')||`<div class="empty">No upcoming trips</div>`}
- ${past.length?`<h3 style="font-size:18px;text-transform:uppercase;letter-spacing:1px;margin:18px 0 10px">Past</h3>${past.map(card).join('')}`:''}
+ return`<div style="margin-bottom:12px">${seg}</div>${backupBanner()}<div class="row" style="margin:0 0 10px"><span class="sp mut sm">${S.trips.length} trip${S.trips.length===1?'':'s'}</span><button class="btn s" data-act="newTrip">+ Trip</button></div>
+ ${homeSecs({up:acc('tr_up',homeHd('Upcoming',up.length),up.map(card).join('')||`<div class="empty">No upcoming trips</div>`,true),past:past.length?acc('tr_past',homeHd('Past',past.length),past.map(card).join(''),true):'',ov:acc('tr_ov',homeHd('Today &amp; alerts'),`${countdownCard()}${todayCard()}${heroNext()}${al.length?`<div class="card"><h3>Alerts</h3>${al.map(alertRow).join('')}${computeAlerts().length>3?`<div class="mut sm" style="padding-top:8px" data-act="alerts">+${computeAlerts().length-3} more</div>`:''}</div>`:''}`,true)})}
  ${S.trips.length?'':`<div class="card"><button class="btn b" data-act="demo">Load sample trip</button></div>`}
  <div class="row w" style="margin-top:14px"><button class="btn o s" data-act="importNew">📥 Trip from email</button><label class="btn o s">Import trip file<input type="file" id="tripfile" accept=".json,application/json" hidden></label></div>`}
+
 /* ===== TRIP DETAIL ===== */
 const SUBS=[['plan','Plan'],['crew','People'],['money','Money'],['pack','Pack'],['docs','Docs'],['share','Share'],['info','Info'],['alerts','Alerts']];
 function viewTrip(){const t=trip(UI.tripId);if(!t){UI.tripId=null;return viewTrips()}
@@ -1727,6 +1730,29 @@ Object.assign(ACT3,{personAdd(){if(!(UI.tab==='trips'&&UI.tripId)){personSheet()
  openSheet('Add traveller',F('name','Name','',{ph:'Marc'})+F('rel','Relation','',{ph:'Friend'})+`<button class="btn o b" data-act="personFull" style="margin-bottom:8px">Add passport and other details</button>`,v=>{if(!v.name.trim()){toast('Add a name');return false}const n={id:uid(),name:v.name.trim(),rel:(v.rel||'').trim()};(S.people=S.people||[]).push(n);(t.people=t.people||['me']).push(n.id);save();render()},{ok:'Add'})},
  personFull(){closeSheet();personSheet()}});
 Object.assign(FR,{'Add traveller':'Ajouter un voyageur','Add passport and other details':'Ajouter passeport et autres détails','Add':'Ajouter','Relation':'Relation'});
+/* ===== v19: home sections fold and can be moved ===== */
+const homeHd=(t,n)=>`<span class="sp">${t}${n!=null?' <span class="mut">· '+n+'</span>':''}</span><b class="hdl" aria-label="Move">⠿</b>`;
+function homeSecs(o){const def=['up','past','ov'],ord=[...(S.homeOrder||[]).filter(k=>def.includes(k)),...def.filter(k=>!(S.homeOrder||[]).includes(k))];return`<div id="hsecs">${ord.map(k=>o[k]?`<div class="hsec" data-sec="${k}">${o[k]}</div>`:'').join('')}</div>`}
+(()=>{let drag=null;
+ document.addEventListener('pointerdown',e=>{const h=e.target.closest('.hdl');if(!h)return;const sec=h.closest('.hsec,.fsec');if(!sec)return;e.preventDefault();drag={sec,id:e.pointerId};sec.classList.add('hdrag');try{h.setPointerCapture(e.pointerId)}catch(x){}},true);
+ document.addEventListener('pointermove',e=>{if(!drag)return;e.preventDefault();const box=drag.sec.parentNode,sibs=[...box.children].filter(x=>x!==drag.sec&&(drag.sec.classList.contains('hsec')||x.classList.contains('fsec')));let before=null;for(const x of sibs){const r=x.getBoundingClientRect();if(e.clientY<r.top+r.height/2){before=x;break}}
+  if(before){if(drag.sec.nextSibling!==before)box.insertBefore(drag.sec,before)}else if(box.lastChild!==drag.sec)box.appendChild(drag.sec);
+  const r=drag.sec.getBoundingClientRect();if(e.clientY<90)scrollBy(0,-12);else if(e.clientY>innerHeight-90)scrollBy(0,12)},true);
+ const end=()=>{if(!drag)return;drag.sec.classList.remove('hdrag');if(drag.sec.classList.contains('hsec'))S.homeOrder=[...drag.sec.parentNode.children].map(x=>x.dataset.sec);else{(S.order=S.order||{})[drag.sec.dataset.vk]=[...drag.sec.parentNode.querySelectorAll(':scope>.fsec')].map(x=>x.dataset.ft)}save();drag=null};
+ document.addEventListener('pointerup',end,true);document.addEventListener('pointercancel',end,true);
+ document.addEventListener('click',e=>{if(e.target.closest('.hdl')){e.preventDefault();e.stopPropagation()}},true)})();
+
+/* ===== v19: every window — cards fold and can be moved ===== */
+function organise7(){const v=document.querySelector('#view');if(!v||v.querySelector('#hsecs'))return;
+ const vk=[UI.tab,UI.tab==='trips'&&UI.tripId?'t:'+UI.sub:'',UI.tab==='tools'?UI.tool||'':''].join('|');const cards=[...v.children].filter(c=>c.classList&&c.classList.contains('card')&&!c.classList.contains('fsec'));
+ const els=[];cards.forEach(c=>{const h=c.querySelector('h3');if(!h||!h.textContent.trim()||h.closest('.card')!==c)return;let tl=h;while(tl.parentNode!==c)tl=tl.parentNode;if(c.firstElementChild!==tl)return;
+  const key=h.textContent.trim().slice(0,40);c.classList.add('fsec');c.dataset.vk=vk;c.dataset.ft=key;tl.classList.add('ftl');
+  const hd=document.createElement('b');hd.className='hdl';hd.textContent='⠿';hd.setAttribute('aria-label','Move');(tl.matches('h3')?tl:tl).appendChild(hd);
+  if(tl===h){h.style.display='flex';h.style.alignItems='center'}
+  h.classList.add('fth');if((S.fold||{})[vk+'|'+key])c.classList.add('fold');els.push(c)});
+ const ord=(S.order||{})[vk];if(ord&&els.length>1){const slots=els.map(e=>e.nextSibling);const sorted=els.slice().sort((a,b)=>{const x=ord.indexOf(a.dataset.ft),y=ord.indexOf(b.dataset.ft);return(x<0?999:x)-(y<0?999:y)});const frag=document.createDocumentFragment();const first=els[0];const anchor=document.createComment('');first.parentNode.insertBefore(anchor,first);els.forEach(e=>e.remove());sorted.forEach(e=>frag.appendChild(e));anchor.parentNode.insertBefore(frag,anchor);anchor.remove()}}
+document.addEventListener('click',e=>{const h=e.target.closest('.fth');if(!h||e.target.closest('button,a,input,select,label'))return;const c=h.closest('.fsec');if(!c)return;c.classList.toggle('fold');const k=c.dataset.vk+'|'+c.dataset.ft;(S.fold=S.fold||{})[k]=c.classList.contains('fold')?1:0;if(!S.fold[k])delete S.fold[k];save()},true);
+const _render19=render;render=function(){_render19.apply(this,arguments);try{organise7()}catch(e){}};
 
 /* ===== RENDER ===== */
 UI.acc={};
