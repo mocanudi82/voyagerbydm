@@ -166,6 +166,17 @@ iframe.map{width:100%;height:240px;border:1px solid var(--line);border-radius:18
 .rpd{height:40px;display:flex;align-items:center;justify-content:center;font:600 17px var(--fh);cursor:pointer;border-radius:0}
 .rpd.in{background:color-mix(in srgb,var(--tc,#4fbbbc) 30%,var(--card))}.rpd.s,.rpd.e{background:#ec4624;color:#fff}.rpd.s{border-radius:20px 0 0 20px}.rpd.e{border-radius:0 20px 20px 0}.rpd.s.e{border-radius:20px}.rpd.t{outline:2px solid var(--ink);outline-offset:-2px;border-radius:20px}
 .rpf{display:flex;justify-content:space-between;margin-top:8px;font:600 15px var(--fh);color:var(--mut)}
+#gal{position:fixed;inset:0;z-index:99999;background:#0b1514;display:flex;flex-direction:column;color:#fff;touch-action:pan-x}
+#gal .gt{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 14px 8px}#gal .gt b{flex:1;font:600 16px var(--fh);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#gal .gx{width:44px;height:44px;border-radius:50%;border:0;background:#ffffff22;color:#fff;font:700 22px var(--fh)}
+#gal .gs{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}#gal .gs::-webkit-scrollbar{display:none}
+#gal .gi{flex:0 0 100%;scroll-snap-align:center;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+#gal .gi img{max-width:100%;max-height:100%;object-fit:contain;transform-origin:center;will-change:transform;user-select:none;-webkit-user-drag:none}
+#gal .gp{text-align:center}#gal .gp div{font-size:64px}#gal .gp a{display:inline-block;margin-top:14px;padding:12px 22px;border-radius:999px;background:#4fbbbc;color:#0b1514;font:700 17px var(--fh);text-decoration:none}
+#gal .gn{position:absolute;top:50%;transform:translateY(-50%);width:46px;height:60px;border:0;border-radius:14px;background:#ffffff26;color:#fff;font:700 26px var(--fh)}#gal .gn.l{left:8px}#gal .gn.r{right:8px}
+#gal .gb{display:flex;gap:8px;overflow-x:auto;padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);scrollbar-width:none}#gal .gb::-webkit-scrollbar{display:none}
+#gal .gb i{flex:0 0 56px;height:56px;border-radius:10px;background:#ffffff18 center/cover;border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:24px}#gal .gb i.on{border-color:#ec4624}
+.dgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.dth{aspect-ratio:1;border:1.5px solid var(--line);border-radius:14px;background:var(--card) center/cover;position:relative;overflow:hidden;padding:0;display:flex;align-items:center;justify-content:center}.dth span{font-size:38px}.dth small{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 5px;background:linear-gradient(transparent,#000a);color:#fff;font:500 12px var(--fh);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -561,7 +572,7 @@ function viewTrip(){const t=trip(UI.tripId);if(!t){UI.tripId=null;return viewTri
  return head+chips+body}
 function itemRow(i){const st=i.status?.state;const sub=[];
  if(i.type==='flight'){sub.push(`${apLabel(i.from)} → ${apLabel(i.to)}`);if(i.airline)sub.push(i.airline)}else if(i.address||i.location)sub.push(i.address||i.location);
- const meta=[i.conf&&'Ref '+i.conf,i.terminal&&'T'+i.terminal,i.gate&&'Gate '+i.gate,i.seat&&'Seat '+i.seat].filter(Boolean);
+ const meta=[...whoTag(i),splitTag(i),i.conf&&'Ref '+i.conf,i.terminal&&'T'+i.terminal,i.gate&&'Gate '+i.gate,i.seat&&'Seat '+i.seat].filter(Boolean);
  if(i.type==='hotel'&&i.start&&i.end){const n=dayDiff(i.start.slice(0,10),i.end.slice(0,10));if(n>0){meta.unshift(n+(n>1?' nights':' night'));const num=parseFloat(String(i.cost||'').replace(',','.'));if(i.cost&&num>0){meta.push(i.cost+' total');const unit=String(i.cost).replace(/[0-9.,\s]/g,'');meta.push((Math.round(num/n*100)/100)+(unit?' '+unit:'')+'/night')}}}
  return`<div class="item ${i.type}" data-act="itemMenu" data-id="${i.id}"><div class="ic">${TYPES[i.type][0]}</div><div class="sp"><div class="t">${esc(itemTitle(i))}</div>
  <div class="mut sm">${ftime(i.start)}${i.end?' → '+(i.end.slice(0,10)!==(i.start||'').slice(0,10)?fdate(i.end.slice(0,10),{day:'numeric',month:'short'})+' ':'')+ftime(i.end):''}${sub.length?' · '+esc(sub.join(' · ')):''}</div>
@@ -618,13 +629,14 @@ function itemSheet(tid,type,it,pre){const t=trip(tid);it=it||pre||{};type=type||
  let f='';if(type==='flight'){f=`<div class="g2">${F('airline','Airline',it.airline)}${F('flightNo','Flight no.',it.flightNo,{ph:'AF1234',up:1})}</div><div class="g2">${F('from','From (IATA)',it.from,{ph:'CDG',up:1,list:'apl'})}${F('to','To (IATA)',it.to,{ph:'MEX',up:1,list:'apl'})}</div>${rpBox()}<div class="g2">${F('start','Departs (local)',it.start,{type:'datetime-local'})}${F('end','Arrives (local)',it.end,{type:'datetime-local'})}</div><div class="g3">${F('terminal','Terminal',it.terminal)}${F('gate','Gate',it.gate)}${F('seat','Seat',it.seat,{up:1})}</div><div class="g2">${F('cabin','Cabin',it.cabin||'Economy',{type:'select',opts:Object.keys(CLASS_MULT)})}${F('conf','Booking ref',it.conf,{up:1})}</div>`}
  else if(type==='hotel'){f=F('title','Name',it.title)+F('address','Address',it.address)+`${rpBox()}<div class="g2">${F('start','Check-in',it.start,{type:'datetime-local'})}${F('end','Check-out',it.end,{type:'datetime-local'})}</div>`+F('conf','Booking ref',it.conf,{up:1})}
  else{f=F('title','Title',it.title)+F('location','Place / address',it.location||it.address)+`${rpBox()}<div class="g2">${F('start','Start',it.start,{type:'datetime-local'})}${F('end','End',it.end,{type:'datetime-local'})}</div>`+F('conf','Booking ref',it.conf,{up:1})}
- f+=F('cost',type==='hotel'?'Total price for the stay':'Cost',it.cost,{ph:type==='hotel'?'480 €':'€'})+F('notes','Notes',it.notes,{type:'area'});
+ f+=F('cost',type==='hotel'?'Total price for the stay':'Cost',it.cost,{ph:type==='hotel'?'480 €':'€'})+whoF(t,it,type)+F('notes','Notes',it.notes,{type:'area'});
  const dl='';
  UI._item={tid,id:it.id,type};
  openSheet((it.id?'Edit ':'Add ')+TYPES[type][1],tabs+f+dl+(it.id?`<button class="btn d b" data-act="delItem" data-id="${it.id}" style="margin-bottom:8px">Delete</button>`:''),v=>{
   if(v.start&&v.end&&fixEnd(v))toast('Arrival adjusted to follow departure');
   if(type==='flight'){v.from=(v.from||'').toUpperCase().trim();v.to=(v.to||'').toUpperCase().trim();v.flightNo=(v.flightNo||'').toUpperCase().replace(/\s/g,'');if(!v.from||!v.to||!v.start){toast('Add airports and departure time');return false}}
   else if(!v.title.trim()){toast('Add a title');return false}
+  whoApply(t,v);
   if(it.id)Object.assign(getItem(tid,it.id),v,{type});else t.items.push({id:uid(),type,...v});save();render()})}
 function itemMenu(id){const t=trip(UI.tripId),i=getItem(t.id,id);const pos=i.type==='flight'?AP[i.from]:null;const q=i.address||i.location||i.title||'';
  const nav=i.type==='flight'?`${A(L.waze(pos?.lat,pos?.lon),'Waze to '+i.from)}${A(L.gll(pos?.lat,pos?.lon),'Google Maps')}`:q?`${A(L.gdir(q),'Google Maps')}${A(L.wazeQ(q),'Waze')}${A(L.earthQ(q),'🌍 Earth')}${A(L.apple(q),'Apple Maps')}`:'';
@@ -1649,7 +1661,7 @@ function rpDraw(w){const[a,b]=rpIn();if(!a)return;const s=(a.value||'').slice(0,
  w.innerHTML=`<div class="rph"><button class="rb" data-rpm="-1">‹</button><h4>${f.toLocaleDateString(L_,{month:'long',year:'numeric'})}</h4><button class="rb" data-rpm="1">›</button></div><div class="rpg">${['M','T','W','T','F','S','S'].map(x=>`<b>${x}</b>`).join('')}${c}</div><div class="rpf"><span>${fd(s)}</span><span>→</span><span>${fd(e)}</span></div>`}
 function rpSet(inp,date,dflt){if(!inp)return;const dt=inp.type==='datetime-local';const tm=dt?((inp.value||'').slice(10)||dflt):'';inp.value=date+tm;inp.dispatchEvent(new Event('change',{bubbles:true}))}
 document.addEventListener('click',e=>{const w=e.target.closest('[data-rpw]');if(!w)return;const m=e.target.closest('[data-rpm]'),dd=e.target.closest('[data-rpd]');const st=w._rp;if(m&&st){st.m+=+m.dataset.rpm;if(st.m<0){st.m=11;st.y--}if(st.m>11){st.m=0;st.y++}rpDraw(w);return}
- if(dd&&st){const i=dd.dataset.rpd,[a,b]=rpIn();if(!st.pick){rpSet(a,i,'T09:00');if(b)b.value='';st.pick=1}else{let s=(a.value||'').slice(0,10);if(i<s){rpSet(a,i,'T09:00');rpSet(b,s,'T18:00')}else rpSet(b,i,'T18:00');st.pick=0}rpDraw(w)}},true);
+ if(dd&&st){const i=dd.dataset.rpd,[a,b]=rpIn();if(!st.pick){rpSet(a,i,'T09:00');if(b)rpSet(b,i,'T18:00');st.pick=1}else{let s=(a.value||'').slice(0,10);if(i<s){rpSet(a,i,'T09:00');rpSet(b,s,'T18:00')}else rpSet(b,i,'T18:00');st.pick=0}rpDraw(w)}},true);
 new MutationObserver(()=>document.querySelectorAll('[data-rpw]:empty').forEach(rpDraw)).observe(document.body,{childList:true,subtree:true});
 document.addEventListener('change',e=>{if(e.target.dataset&&(e.target.dataset.f==='start'||e.target.dataset.f==='end')){const w=document.querySelector('[data-rpw]');if(w&&w._rp)setTimeout(()=>rpDraw(w),0)}});
 function calDay(d){const rows=[],tz=[];S.cnotes=S.cnotes||{};
@@ -1664,6 +1676,57 @@ async function keepSrc7(t){const fs=UI._src||[];UI._src=[];if(!t||!fs.length)ret
 Object.assign(ACT3,{async mailPaste(){const ta=document.querySelector('textarea[data-f=txt]');if(!ta)return;const add=s=>{ta.value=(ta.value?ta.value+'\n=====\n':'')+s;toast('Pasted')};
  try{if(navigator.clipboard.read){const its=await navigator.clipboard.read();for(const it of its){const ty=it.types.find(t=>t.startsWith('image/'));if(ty){toast('Reading photo…');const bl=await it.getType(ty);(UI._src=UI._src||[]).push(new File([bl],'screenshot-'+Date.now()+'.png',{type:ty}));add(await imgText7(bl));return}}}}catch(e){}
  try{const s=await navigator.clipboard.readText();if(s)add(s);else toast('Clipboard is empty')}catch(e){toast('Clipboard not available')}}});
+/* ===== v18: choose who each booking is for; per-traveller view of flights, stays and cars ===== */
+const oth7=i=>(i.others||'').split(/[,;+]/).map(x=>x.trim()).filter(Boolean);
+function whoF(t,it,type){const pl=tripPeople(t);type=type||it.type;if(type==='note')return'';const sel=it&&it.who&&it.who.length?new Set(it.who):new Set(pl.map(p=>p.id));
+ const chips=pl.length<2?'':`<div class="f"><b>Who</b><div class="chips" style="margin-top:6px">${pl.map(p=>`<label class="chip ${sel.has(p.id)?'on':''}" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" data-f="w_${p.id}" ${sel.has(p.id)?'checked':''} onchange="this.parentNode.classList.toggle('on',this.checked)" style="margin:0">${esc(p.name)}</label>`).join('')}</div></div>`;
+ const drv=type==='car'?`<datalist id="drvl">${pl.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>`+F('driver','Driver',it.driver,{ph:'Who drives',list:'drvl'}):'';
+ return chips+drv+F('others','Also with (not in the app)',it.others,{ph:'Marc, Léa'})}
+function whoApply(t,v){Object.keys(v).forEach(k=>{if(k.startsWith('w_'))delete v[k]});const pl=tripPeople(t);if(pl.length<2)return;
+ const ids=pl.filter(p=>{const el=document.querySelector('[data-f=w_'+p.id+']');return el&&el.checked}).map(p=>p.id);v.who=ids.length&&ids.length<pl.length?ids:undefined}
+function whoTag(i){const out=[];const t=trip(UI.tripId);if(i.who&&i.who.length&&t&&tripPeople(t).length>1){const n=i.who.map(id=>person(id)?.name).filter(Boolean);if(n.length)out.push('👤 '+n.join(', '))}
+ if(i.driver)out.push('🚗 '+i.driver);const o=oth7(i);if(o.length)out.push('+ '+o.join(', '));return out}
+function splitTag(i){if(!['hotel','car'].includes(i.type))return'';const t=trip(UI.tripId);if(!t)return'';const num=parseFloat(String(i.cost||'').replace(/\s/g,'').replace(',','.'));if(!(num>0))return'';
+ const n=(i.who&&i.who.length?i.who.length:tripPeople(t).length)+oth7(i).length;if(n<2)return'';const unit=String(i.cost).replace(/[0-9.,\s]/g,'');return'÷'+n+' = '+(Math.round(num/n*100)/100)+(unit?' '+unit:'')+' each'}
+const forWho=(i,p)=>!i.who||!i.who.length||i.who.includes(p.id);
+const _viewCrew=viewCrew;viewCrew=t=>{const pl=tripPeople(t),h=_viewCrew(t);if(pl.length<2)return h;
+ const its=t.items.filter(i=>['flight','hotel','car','rail'].includes(i.type)).sort((a,b)=>(a.start||'').localeCompare(b.start||''));if(!its.length)return h;
+ const line=(i,p)=>{const x=i.type==='flight'?(p.me?{seat:i.seat}:(i.pax?.[p.id]||{})):{};const d=i.start?fdate(i.start.slice(0,10),{day:'numeric',month:'short'}):'';
+  const nm=i.type==='flight'?`${esc(i.flightNo||'')} ${apLabel(i.from)} → ${apLabel(i.to)}`:esc(itemTitle(i));const n=i.type==='hotel'&&i.start&&i.end?dayDiff(i.start.slice(0,10),i.end.slice(0,10)):0;
+  return`<div class="row" style="padding:5px 0"><span style="width:26px">${TYPES[i.type][0]}</span><span class="sp">${nm}<div class="mut sm">${d}${i.end&&i.type!=='flight'?' → '+fdate(i.end.slice(0,10),{day:'numeric',month:'short'}):''}${n?' · '+n+(n>1?' nights':' night'):''}${x.seat?' · seat '+esc(x.seat):''}${i.conf?' · '+esc(i.conf):''}</div></span></div>`};
+ return h+pl.map(p=>{const mine=its.filter(i=>forWho(i,p));return`<div class="card"><h3>${esc(p.name)}</h3>${mine.map(i=>line(i,p)).join('')||'<div class="mut">Nothing booked</div>'}</div>`}).join('')};
+Object.assign(FR,{'Driver':'Conducteur','Who drives':'Qui conduit','Also with (not in the app)':'Avec aussi (hors app)','Who':'Pour qui','Nothing booked':'Rien de réservé'});
+/* ===== v18: photo viewer — swipe between documents, pinch / double-tap zoom, thumbnails ===== */
+async function gal7(id){const t=trip(UI.tripId);if(!t)return;let ds=[];try{ds=(await docsOf(t.id)).filter(d=>!d.kind)}catch(e){}ds.sort((a,b)=>(a.added||'').localeCompare(b.added||''));if(!ds.length)return;
+ const urls=ds.map(d=>URL.createObjectURL(d.blob)),isP=d=>/pdf/i.test(d.type||'')||/\.pdf$/i.test(d.name||''),g=document.createElement('div');g.id='gal';let cur=Math.max(0,ds.findIndex(d=>d.id===id));
+ g.innerHTML=`<div class="gt"><b></b><button class="gx" data-g="ren" aria-label="Rename">✎</button><button class="gx" data-g="del" aria-label="Delete">🗑</button><button class="gx" data-g="x" aria-label="Close">✕</button></div><div class="gs">${ds.map((d,i)=>`<div class="gi">${isP(d)?`<div class="gp"><div>📄</div><span>${esc(d.name)}</span><br><a href="${urls[i]}" target="_blank">Open PDF</a></div>`:`<img src="${urls[i]}" alt="" draggable="false">`}</div>`).join('')}${ds.length>1?'<button class="gn l">‹</button><button class="gn r">›</button>':''}</div>${ds.length>1?`<div class="gb">${ds.map((d,i)=>`<i data-i="${i}" ${isP(d)?'':`style="background-image:url(${urls[i]})"`}>${isP(d)?'📄':''}</i>`).join('')}</div>`:''}`;
+ document.body.appendChild(g);const sc=g.querySelector('.gs'),th=[...g.querySelectorAll('.gb i')],ttl=g.querySelector('.gt b');
+ const w=()=>sc.clientWidth,show=i=>{cur=Math.max(0,Math.min(ds.length-1,i));ttl.textContent=(ds.length>1?(cur+1)+' / '+ds.length+' · ':'')+ds[cur].name;th.forEach((x,k)=>x.classList.toggle('on',k===cur));const x=th[cur];if(x)x.scrollIntoView({inline:'center',block:'nearest'})};
+ const go=i=>{sc.scrollTo({left:Math.max(0,Math.min(ds.length-1,i))*w(),behavior:'smooth'})};
+ sc.scrollLeft=cur*w();show(cur);let tm;sc.addEventListener('scroll',()=>{clearTimeout(tm);tm=setTimeout(()=>{show(Math.round(sc.scrollLeft/w()));reset()},60)});
+ const close=()=>{document.removeEventListener('keydown',kd);urls.forEach(u=>URL.revokeObjectURL(u));g.remove()};const kd=e=>{if(e.key==='Escape')close();else if(e.key==='ArrowRight')go(cur+1);else if(e.key==='ArrowLeft')go(cur-1)};document.addEventListener('keydown',kd);
+ g.querySelector('[data-g=x]').onclick=close;g.querySelector('[data-g=ren]').onclick=()=>{const i=ds[cur].id;close();ACT.docRen({id:i})};g.querySelector('[data-g=del]').onclick=()=>{const i=ds[cur].id;close();confirmSheet('Delete this document?',()=>ACT.docDel({id:i}))};const L=g.querySelector('.gn.l'),R=g.querySelector('.gn.r');if(L){L.onclick=()=>go(cur-1);R.onclick=()=>go(cur+1)}th.forEach(x=>x.onclick=()=>go(+x.dataset.i));
+ /* zoom */let z=1,tx=0,ty=0,d0=0,z0=1,last=0,pan=null;const img=()=>g.querySelectorAll('.gi')[cur].querySelector('img');
+ const ap=()=>{const m=img();if(m){m.style.transform=`translate(${tx}px,${ty}px) scale(${z})`}sc.style.overflowX=z>1.02?'hidden':'auto'};const reset=()=>{z=1;tx=ty=0;g.querySelectorAll('.gi img').forEach(m=>m.style.transform='');sc.style.overflowX='auto'};
+ const dist=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+ sc.addEventListener('touchstart',e=>{if(!img())return;if(e.touches.length===2){d0=dist(e);z0=z;pan=null}else if(e.touches.length===1){const n=Date.now();if(n-last<280){z=z>1.05?1:2.5;tx=ty=0;ap();e.preventDefault()}last=n;pan=z>1?{x:e.touches[0].clientX-tx,y:e.touches[0].clientY-ty}:null}},{passive:false});
+ sc.addEventListener('touchmove',e=>{if(!img())return;if(e.touches.length===2){z=Math.max(1,Math.min(5,z0*dist(e)/d0));if(z===1)tx=ty=0;ap();e.preventDefault()}else if(pan&&z>1){tx=e.touches[0].clientX-pan.x;ty=e.touches[0].clientY-pan.y;ap();e.preventDefault()}},{passive:false});
+ sc.addEventListener('touchend',()=>{if(z<1.05)reset()})}
+Object.assign(FR,{'Open PDF':'Ouvrir le PDF'});
+
+/* docs as a thumbnail grid */
+async function loadDocs(){const t=trip(UI.tripId);if(!t||UI.sub!=='docs')return;let ds=[];try{ds=(await docsOf(t.id)).filter(d=>!d.kind)}catch(e){}ds.sort((a,b)=>(a.added||'').localeCompare(b.added||''));
+ t.docCount=ds.length;save();const lim=S.settings.docLimit;const box=$('#docsbox');if(!box)return;(UI._thumbs||[]).forEach(u=>URL.revokeObjectURL(u));UI._thumbs=[];
+ const isP=d=>/pdf/i.test(d.type||'')||/\.pdf$/i.test(d.name||'');
+ box.innerHTML=`<div class="card"><div class="row"><h3 class="sp" style="margin:0">Documents</h3><span class="pill ${ds.length>=lim?'red':''}">${ds.length} / ${lim}</span></div>
+ <label class="btn b ${ds.length>=lim?'o':''}" style="margin-top:10px;${ds.length>=lim?'opacity:.5':''}">+ Add photo, QR code or PDF<input type="file" id="docin" accept="image/*,application/pdf" multiple hidden ${ds.length>=lim?'disabled':''}></label></div>
+ ${ds.length?`<div class="dgrid">${ds.map(d=>{let u='';if(!isP(d)){u=URL.createObjectURL(d.blob);UI._thumbs.push(u)}return`<button class="dth" data-act="docOpen" data-id="${d.id}" ${u?`style="background-image:url(${u})"`:''}>${isP(d)?'<span>📄</span>':''}<small>${esc(d.name)}</small></button>`}).join('')}</div>`:'<div class="empty">No documents yet</div>'}`;
+ const inp=$('#docin');if(inp)inp.onchange=async e=>{let n=ds.length;for(const f of e.target.files){if(n>=lim){toast('Document limit reached ('+lim+')');break}await docPut({id:uid(),tripId:t.id,name:f.name,type:f.type,size:f.size,added:new Date().toISOString(),blob:f});n++}loadDocs()}}
+/* quick add of a traveller */
+Object.assign(ACT3,{personAdd(){if(!(UI.tab==='trips'&&UI.tripId)){personSheet();return}const t=trip(UI.tripId);
+ openSheet('Add traveller',F('name','Name','',{ph:'Marc'})+F('rel','Relation','',{ph:'Friend'})+`<button class="btn o b" data-act="personFull" style="margin-bottom:8px">Add passport and other details</button>`,v=>{if(!v.name.trim()){toast('Add a name');return false}const n={id:uid(),name:v.name.trim(),rel:(v.rel||'').trim()};(S.people=S.people||[]).push(n);(t.people=t.people||['me']).push(n.id);save();render()},{ok:'Add'})},
+ personFull(){closeSheet();personSheet()}});
+Object.assign(FR,{'Add traveller':'Ajouter un voyageur','Add passport and other details':'Ajouter passeport et autres détails','Add':'Ajouter','Relation':'Relation'});
 
 /* ===== RENDER ===== */
 UI.acc={};
@@ -1707,7 +1770,7 @@ const ACT={
  exportIcs(){const t=trip(UI.tripId);dl((t.name||'trip').replace(/\W+/g,'_')+'.ics',tripICS(t),'text/calendar');toast('Calendar file ready — open it to add events & alarms')},
  tripMap(){const t=trip(UI.tripId);const h=t.items.find(i=>i.type==='hotel');UI.ex.q=h?(h.address||h.title)+' '+(t.dest||''):t.dest||'';UI.tab='explore';render();ACT.exGo()},
  exHotel(d){const t=trip(UI.tripId),h=getItem(t.id,d.id);closeSheet();UI.ex.q=(h.address||h.title)+' '+(t.dest||'');UI.ex.cat='near';UI.tab='explore';render();ACT.exGo()},
- async docOpen(d){const x=(await docAll()).find(y=>y.id===d.id);const u=URL.createObjectURL(x.blob);window.open(u,'_blank')||(location.href=u)},
+ async docOpen(d){gal7(d.id)},
  async docDel(d){await docDel(d.id);loadDocs()},
  async docRen(d){const x=(await docAll()).find(y=>y.id===d.id);openSheet('Rename',F('n','Name',x.name),async v=>{x.name=v.n||x.name;await docPut(x);loadDocs()})},
  nshare(){nativeShare(tripText(trip(UI.tripId)))},shr(d){shareTo(d.k,tripText(trip(UI.tripId)))},copyTrip(){copy(tripText(trip(UI.tripId)))},
